@@ -1,0 +1,42 @@
+{
+  "name": "aplicacion-mejora-taller",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.16.0",
+    "@hookform/resolvers": "^5.1.1",
+    "@pdftron/webviewer": "^11.6.0",
+    "@react-pdf/renderer": "^4.3.0",
+    "date-fns": "^4.1.0",
+    "firebase": "^11.10.0",
+    "formidable": "^3.5.4",
+    "formidable-serverless": "^1.1.1",
+    "html2canvas": "^1.4.1",
+    "html2pdf.js": "^0.10.3",
+    "jspdf": "^3.0.1",
+    "next": "^15.3.5",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.4.120",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-hook-form": "^7.60.0",
+    "yup": "^1.6.1",
+    "react-big-calendar": "^1.11.4",
+    "moment": "^2.29.4"
+
+  },
+"devDependencies": {
+  "@eslint/eslintrc": "^3",
+  "autoprefixer": "^10.4.21",
+  "eslint": "^9",
+  "eslint-config-next": "15.3.5",
+  "postcss": "^8.5.6",
+  "tailwindcss": "^3.4.3"
+}
+}

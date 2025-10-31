@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "rare-bastion-465908-e7",
+  "private_key_id": "443b7603f0912f031e1427787f6c6ab1b4a91dbc",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCcoJH7qMNHu40K\noqzdiMBo4hBFvmEmo/WX939BbgLIxkH2ZxMqLrBSryxiT9NHY5MAZRyhs56e6hBn\nEwzaZW08Aie0uo7E1doKPs8dVm3ph0j1JQ5ny1HIzAThCsNNSzEjJ6TPN+ZTHNhs\n+zcY9tFyXxFn5rXDZetWuohOM2dHHz71Ay+fMVFZfSWOyudSFA1OfKdeUkOmOHc0\nstKIBefpqaMz4bct0+C9Zgnqu4sAy0A+3cfMNlsk52sUe0FO++CRTFQNfGfP9fB2\ntLEVj3Z1sRIDOqppuckUfgY5UfMxg0ynZDUm/fTbEX+UPsr3ssqL3ry66jQPZoiA\nbcnzOVaXAgMBAAECggEAG/nqWWMpjlSHutCXw/I7PAC1G2AIBlje80f36P33bVlM\nSvDaUXyJbhtv+Bd+C5BTn4xv8socmRIB4AddEl1vh3pzESsJeUshaRcS85COjVnm\nxDLcQdnlP9KBRJkhjVrS6g6Yt5Kqh0nttnmgu8rKWn10pHRnHwHDaXhkBGPWHLPG\nd3SlySVrzo443MobisTXj0eBntmJ0XQPo721dYy6BCxmXBFCN1/EKxRmbrsTWT2+\nXSHOMV4tXeZMQqFMkWJtmg8O36MYJ5KghLOh4Uwfg1BtKKksoa+zifuzEZA19XoZ\nlWLVTEvOtKrVUYLGQCLwXauvCPwea/i+/YRaiJGeMQKBgQDRByO57JWSMS/l1HdW\nZtGyC04owJB9Wuq8yzGybcDx7fdWBZVsuy0YFbG+EMFPzaSmdaz198QIJUh8qq/c\nfLd5zA0XBH0+LqrWTNmeE5nK6ca3xQMMTUMcNhde7P2GrM0yG43zJByMJ6vWBdlX\nfjkfg+Chc+Yjuv5wzsn6EBBZ4wKBgQC/0vMSMpqWsza8iOGIgIeLENDJnps6AP62\nhhRo2wURmyg1Sh+3H6L9FCmoHU0oQRRTp4IwBDNeaZsfYTtABcTiA6WnLDTr5pn1\n1Omri93Fc6+O1hzotbcTLe8M1K18RWCHSnBrlOX6xrId+t15W/g8UP2cKM+tp3vX\nWWPz/rY+vQKBgGfABHKXRFIwydZo0+b11+VoiR3fHpip1NNqg7tNkLREajyvPtCe\nQy6uLe/p/xluN+hLhlL77LgiUU1XpzxoRuVUa7beCpAft7nwoR8+GVrHGFREnFOx\n0bqh+o2qUdhT0vGpDZb+eJD0a+0qMAumYhILciaREUzw1rQFX+kXqhYDAoGAJcl6\nVIVfanxXNgCI3QjkqoJffrgdv+leQ7pZ3uX2M6eq3gSCBuLWiqAkLJfJETrwtCH1\nRVwuelS3WBEhSNVaGWO6iBnvOuEsRv7wIPjmcPT/ClYnT7gsHj0YMCDdI/POthf1\n2Vt1ilcF014NrtBtMASMUOzBLGYnwR480F3GrMkCgYA1GWsNi/cptQdSVR0ttfNg\nd73GJgu3rGDcZO5vEUiD61JZW4uZq79SSdOoBu0GcJPG23o99Bozohf3N+wZputD\nwIIJgZTjTS7KM0VPOYGfgpSGupzocP0NfEf0amqQQnNpVuFkipfW6SEtyv99AHhf\nUnubU1lTsSLUz5VP5XIesw==\n-----END PRIVATE KEY-----\n",
+  "client_email": "upload-pdfs@rare-bastion-465908-e7.iam.gserviceaccount.com",
+  "client_id": "104278834324534380952",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/upload-pdfs%40rare-bastion-465908-e7.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
