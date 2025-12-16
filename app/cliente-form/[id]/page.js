@@ -149,6 +149,9 @@ export default function ClienteFormDetail() {
             {renderInput("Marca/Modelo", "marcaModelo")}
             {renderInput("Fecha de Cita", "fechaCita", "date")}
             {renderInput("Fecha Salida", "fechaSalida", "date")}
+
+            {/* Asesor justo después de las fechas */}
+            {renderInput("Asesor", "asesor")}
           </div>
 
           {renderInput("Descripción del síntoma", "descripcion")}
@@ -175,9 +178,8 @@ export default function ClienteFormDetail() {
           </div>
 
           {renderInput("Otro", "otroLibre")}
-
-          {renderInput("Asesor", "asesor")}
         </div>
+
         <div className="bg-white p-2 rounded shadow overflow-hidden">
           <iframe
             src="/cuestionario_cliente_formulario.pdf#toolbar=1&zoom=page-width"
