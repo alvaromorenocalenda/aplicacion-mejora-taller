@@ -41,6 +41,9 @@ export default function ClienteFormDetail() {
       const datos = snap.data().datos || {};
       setCuestionario(datos);
       setDatosEditados(datos);
+      try {
+        document.title = `${datos.matricula} - ${datos.numeroOR} - ${datos.nombreCliente || ""}`.trim();
+      } catch (e) {}
       setLoading(false);
     }
     load();
@@ -139,11 +142,12 @@ export default function ClienteFormDetail() {
         <div className="bg-white p-6 rounded shadow space-y-4">
           <div className="grid grid-cols-2 gap-4">
             {renderInput("Matrícula", "matricula")}
-            {renderInput("Fecha de Cita", "fechaCita", "date")}
-            {renderInput("Marca/Modelo", "marcaModelo")}
+            {renderInput("Nombre", "nombreCliente")}
+            {renderInput("Teléfono Cliente", "telefonoCliente")}
             {renderInput("Nº OR", "numeroOR")}
             {renderInput("Ciclo", "ciclo")}
-            {renderInput("Teléfono Cliente", "telefonoCliente")}
+            {renderInput("Marca/Modelo", "marcaModelo")}
+            {renderInput("Fecha de Cita", "fechaCita", "date")}
             {renderInput("Fecha Salida", "fechaSalida", "date")}
           </div>
 
@@ -171,6 +175,8 @@ export default function ClienteFormDetail() {
           </div>
 
           {renderInput("Otro", "otroLibre")}
+
+          {renderInput("Asesor", "asesor")}
         </div>
         <div className="bg-white p-2 rounded shadow overflow-hidden">
           <iframe
