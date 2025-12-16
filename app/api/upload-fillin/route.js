@@ -1,52 +1,55 @@
 import { NextResponse } from "next/server";
 import { Storage } from "@google-cloud/storage";
-import formidable from "formidable-serverless";
 
-// 1) Forzar Node runtime
+// Forzar runtime Node (necesario para GCS)
 export const runtime = "nodejs";
-// 2) Deshabilitamos bodyParser
-export const config = {
-  api: { bodyParser: false, externalResolver: true },
-};
+export const dynamic = "force-dynamic";
 
 const storage = new Storage({
   projectId: process.env.GCP_PROJECT_ID,
   credentials: {
     client_email: process.env.GCP_CLIENT_EMAIL,
-    private_key: process.env.GCP_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    private_key: process.env.GCP_PRIVATE_KEY?.replace(/\\n/g, "\n"),
   },
 });
+
 const bucket = storage.bucket(process.env.GCP_BUCKET_NAME);
 
 export async function POST(req) {
   try {
-    // Parse multipart
-    const form = new formidable.IncomingForm();
-    const { fields, files } = await new Promise((res, rej) =>
-      form.parse(req, (err, fields, files) => (err ? rej(err) : res({ fields, files })))
-    );
+    const formData = await req.formData();
 
-    // Validar PDF
-    const file = files.pdf;
+    const file = formData.get("pdf");
+    const uid = formData.get("uid");
+    const filename = formData.get("filename");
+
     if (!file) {
-      return NextResponse.json({ error: "No hay archivo PDF" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No hay archivo PDF" },
+        { status: 400 }
+      );
     }
 
-    // Ruta destino en el bucket
-    const dest = `clientes/${fields.uid}/${fields.filename}`;
+    // Convertir a Buffer
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
 
-    // Subir
-    await bucket.upload(file.filepath, {
-      destination: dest,
-      metadata: { contentType: "application/pdf" },
+    const dest = `clientes/${uid}/${filename}`;
+    const fileUpload = bucket.file(dest);
+
+    await fileUpload.save(buffer, {
+      contentType: "application/pdf",
+      resumable: false,
     });
 
-    // URL pública
     const url = `https://storage.googleapis.com/${process.env.GCP_BUCKET_NAME}/${dest}`;
 
     return NextResponse.json({ url });
   } catch (e) {
     console.error("API upload-pdf falló:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { error: e.message },
+      { status: 500 }
+    );
   }
 }
