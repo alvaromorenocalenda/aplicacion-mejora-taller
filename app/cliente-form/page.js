@@ -95,33 +95,39 @@ export default function ClienteFormPage() {
               <input name="matricula" type="text" required className="mt-1 w-full border px-2 py-1 text-sm rounded" />
             </div>
             <div>
-              <label className="block text-xs font-bold">Fecha Cita:</label>
-              <input name="fechaCita" type="date" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <label className="block text-xs font-bold">Nombre:</label>
+              <input name="nombreCliente" type="text" required className="mt-1 w-full border px-2 py-1 text-sm rounded" />
             </div>
-            <div>
-              <label className="block text-xs font-bold">Marca/Modelo:</label>
-              <input name="marcaModelo" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold">Nº OR:</label>
-              <input name="numeroOR" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold">Ciclo:</label>
-              <input name="ciclo" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
-            </div>
+
             <div>
               <label className="block text-xs font-bold">Teléfono Cliente:</label>
               <input name="telefonoCliente" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
             </div>
             <div>
+              <label className="block text-xs font-bold">Nº OR:</label>
+              <input name="numeroOR" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold">Ciclo:</label>
+              <input name="ciclo" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold">Marca/Modelo:</label>
+              <input name="marcaModelo" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold">Fecha Cita:</label>
+              <input name="fechaCita" type="date" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+            </div>
+            <div>
               <label className="block text-xs font-bold">Fecha Salida:</label>
               <input name="fechaSalida" type="date" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
             </div>
-
           </div>
 
-          {/* Descripción síntoma */}
+{/* Descripción síntoma */}
           <div>
             <label className="block text-xs font-bold">Descripción del síntoma:</label>
             <textarea name="descripcion" rows={3} className="mt-1 w-full border px-2 py-1 text-sm rounded" />
@@ -293,7 +299,14 @@ export default function ClienteFormPage() {
             <input name="otroLibre" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
           </div>
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          
+          {/* Asesor */}
+          <div>
+            <label className="block text-xs font-bold">Asesor:</label>
+            <input name="asesor" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+          </div>
+
+{error && <p className="text-red-600 text-sm">{error}</p>}
 
           <div className="text-center">
             <button
