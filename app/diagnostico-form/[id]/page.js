@@ -32,7 +32,8 @@ function Section({ title, children }) {
 function asList(val) {
   if (Array.isArray(val)) return val.length ? val.join(", ") : "—";
   if (typeof val === "string") return val.trim() ? val : "—";
-  return "—";
+  if (val === null || val === undefined) return "—";
+  return String(val);
 }
 
 // Lee todos los campos del formulario
@@ -58,68 +59,69 @@ export default function DiagnosticoFormPage() {
   // Cargo el cuestionario cliente
   useEffect(() => {
     if (!auth.currentUser) return router.replace("/login");
-  
+
     (async () => {
       const cuestionarioSnap = await getDoc(doc(db, "cuestionarios_cliente", id));
       if (!cuestionarioSnap.exists()) return router.replace("/diagnostico-form");
-  
+
       const cuestionarioData = cuestionarioSnap.data().datos;
-  
+
       // 🔍 Buscar si ya existe un checklist
       const checklistId = `${cuestionarioData.matricula}-${cuestionarioData.numeroOR}`;
       const checklistSnap = await getDoc(doc(db, "checklists", checklistId));
       const checklistData = checklistSnap.exists() ? checklistSnap.data().datos : {};
-  
+
       // ⏫ Unificar datos para el formulario
       const datosCombinados = {
         ...cuestionarioData,
         ...checklistData
       };
-  
+
       setCuestionario(datosCombinados);
       try {
         const n = datosCombinados.nombreCliente || "";
-        document.title = `${datosCombinados.matricula} - ${datosCombinados.numeroOR} - ${n} - Diagnostico`.replace(/\s+-\s+-/g, " - ").trim();
+        document.title = `${datosCombinados.matricula} - ${datosCombinados.numeroOR} - ${n} - Diagnostico`
+          .replace(/\s+-\s+-/g, " - ")
+          .trim();
       } catch (e) {}
       setLoading(false);
     })();
   }, [id, router]);
 
-
   // Guarda la checklist con ID “matricula-numeroOR”
   async function handleSave(e) {
     e.preventDefault();
     setGuardando(true);
-   try {
-  const datosChecklist = readChecklistData();
-  const customId = `${cuestionario.matricula}-${cuestionario.numeroOR}`;
+    try {
+      const datosChecklist = readChecklistData();
+      const customId = `${cuestionario.matricula}-${cuestionario.numeroOR}`;
 
-  await setDoc(
-    doc(db, "checklists", customId),
-    {
-      uidAsesor: auth.currentUser.uid,
-      cuestionarioId: id,
-      completadoEn: serverTimestamp(),
-      datos: datosChecklist,
-      estadoPresupuesto: "PENDIENTE_PRESUPUESTO",
+      await setDoc(
+        doc(db, "checklists", customId),
+        {
+          uidAsesor: auth.currentUser.uid,
+          cuestionarioId: id,
+          completadoEn: serverTimestamp(),
+          datos: datosChecklist,
+          estadoPresupuesto: "PENDIENTE_PRESUPUESTO",
+        }
+      );
+
+      // ✅ Marcar checklist como editada en la colección de recambios
+      try {
+        await updateDoc(doc(db, "recambios", customId), {
+          checklistEditada: true
+        });
+      } catch (e) {
+        console.log("No se pudo marcar la checklist como editada.");
+      }
+
+      router.push("/diagnostico-form");
+    } catch (err) {
+      setError(err.message);
+      setGuardando(false);
     }
-  );
-
-  // ✅ Marcar checklist como editada en la colección de recambios
-  try {
-    await updateDoc(doc(db, "recambios", customId), {
-      checklistEditada: true
-    });
-  } catch (e) {
-    console.log("No se pudo marcar la checklist como editada.");
   }
-
-  router.push("/diagnostico-form");
-} catch (err) {
-  setError(err.message);
-  setGuardando(false);
-}
-}
 
   if (loading) return <p className="p-6 text-center">Cargando…</p>;
 
@@ -141,30 +143,36 @@ export default function DiagnosticoFormPage() {
         <h2 className="text-xl font-semibold mb-4">
           Detalle Cuestionario Cliente
         </h2>
+
         <div className="grid grid-cols-2 gap-4">
           <Field label="Matrícula" value={asList(cuestionario.matricula)} />
           <Field label="Nombre" value={asList(cuestionario.nombreCliente)} />
-          <Field
-            label="Fecha de Cita"
-            value={asList(cuestionario.fechaCita)}
-          />
-          <Field label="Marca/Modelo" value={asList(cuestionario.marcaModelo)} />
+
+          <Field label="Teléfono Cliente" value={asList(cuestionario.telefonoCliente)} />
           <Field label="Nº OR" value={asList(cuestionario.numeroOR)} />
-          <Field label="Ciclo" value={cuestionario.ciclo} />
-          <Field label="Teléfono Cliente" value={cuestionario.telefonoCliente} />
+
+          <Field label="Ciclo" value={asList(cuestionario.ciclo)} />
+          <Field label="Marca/Modelo" value={asList(cuestionario.marcaModelo)} />
+
+          <Field label="Fecha de Cita" value={asList(cuestionario.fechaCita)} />
+          <Field label="Fecha Salida" value={asList(cuestionario.fechaSalida)} />
+
+          {/* ✅ NUEVO: Asesor */}
+          <Field label="Asesor" value={asList(cuestionario.asesor)} />
         </div>
+
         <Section title="Descripción del síntoma">
           <p className="text-sm text-gray-800">
             {asList(cuestionario.descripcion)}
           </p>
         </Section>
+
         <div className="grid grid-cols-2 gap-4">
           <Field label="Testigos" value={asList(cuestionario.testigos)} />
           <Field label="Mensajes" value={asList(cuestionario.mensajes)} />
         </div>
 
-        <Section title="Detalles del síntoma">
-        </Section>
+        <Section title="Detalles del síntoma"></Section>
 
         <Section title="Tipo">
           <p className="text-sm text-gray-800">{asList(cuestionario.tipo)}</p>
@@ -172,25 +180,23 @@ export default function DiagnosticoFormPage() {
             <p className="mt-1 text-sm">Otro: {cuestionario.tipoOtro}</p>
           )}
         </Section>
+
         <Section title="Categoría">
           <p className="text-sm text-gray-800">
             {asList(cuestionario.categoria)}
           </p>
         </Section>
-        <Field
-          label="Comentarios"
-          value={asList(cuestionario.comentarios)}
-        />
-        <Field
-          label="¿En qué parte?"
-          value={asList(cuestionario.parteCoche)}
-        />
+
+        <Field label="Comentarios" value={asList(cuestionario.comentarios)} />
+        <Field label="¿En qué parte?" value={asList(cuestionario.parteCoche)} />
+
         <Section title="¿Desde cuándo?">
           <p className="text-sm text-gray-800">{asList(cuestionario.desde)}</p>
           {cuestionario.desdeOtro && (
             <p className="mt-1 text-sm">Otro: {cuestionario.desdeOtro}</p>
           )}
         </Section>
+
         <Section title="¿Con qué frecuencia?">
           <p className="text-sm text-gray-800">
             {asList(cuestionario.frecuencia)}
@@ -201,12 +207,14 @@ export default function DiagnosticoFormPage() {
             </p>
           )}
         </Section>
+
         <Section title="¿Dónde ocurre?">
           <p className="text-sm text-gray-800">{asList(cuestionario.donde)}</p>
           {cuestionario.dondeOtro && (
             <p className="mt-1 text-sm">Otro: {cuestionario.dondeOtro}</p>
           )}
         </Section>
+
         <Section title="Condiciones exteriores">
           <p className="text-sm text-gray-800">
             {asList(cuestionario.condiciones)}
@@ -217,23 +225,17 @@ export default function DiagnosticoFormPage() {
             </p>
           )}
         </Section>
+
         <Section title="¿Cómo ocurre?">
           <p className="text-sm text-gray-800">{asList(cuestionario.como)}</p>
         </Section>
+
         <div className="grid grid-cols-3 gap-4 mt-4">
-          <Field
-            label="Posición cambio"
-            value={asList(cuestionario.posicionCambio)}
-          />
-          <Field
-            label="Velocidad (Km/h)"
-            value={asList(cuestionario.velocidad)}
-          />
-          <Field
-            label="Revoluciones (rpm)"
-            value={asList(cuestionario.revoluciones)}
-          />
+          <Field label="Posición cambio" value={asList(cuestionario.posicionCambio)} />
+          <Field label="Velocidad (Km/h)" value={asList(cuestionario.velocidad)} />
+          <Field label="Revoluciones (rpm)" value={asList(cuestionario.revoluciones)} />
         </div>
+
         {cuestionario.otroLibre && (
           <Field label="Otro" value={asList(cuestionario.otroLibre)} />
         )}
@@ -286,8 +288,11 @@ export default function DiagnosticoFormPage() {
             ))}
           </div>
 
+          {/* ✅ Hidden para que también se guarden en checklists.datos */}
           <input type="hidden" name="nombreCliente" defaultValue={cuestionario.nombreCliente || ""} />
           <input type="hidden" name="telefonoCliente" defaultValue={cuestionario.telefonoCliente || ""} />
+          <input type="hidden" name="fechaSalida" defaultValue={cuestionario.fechaSalida || ""} />
+          <input type="hidden" name="asesor" defaultValue={cuestionario.asesor || ""} />
 
           {/* MENSAJES */}
           <div>
@@ -338,92 +343,87 @@ export default function DiagnosticoFormPage() {
 
           {/* PUNTOS DE REVISIÓN */}
           <h2 className="text-xl font-bold border-b-2 border-red-600 pb-1">
-              Puntos de revisión
+            Puntos de revisión
           </h2>
 
+          {/* TABLA NIVELES DE LÍQUIDOS */}
+          <div>
+            <strong>Niveles de líquidos:</strong>
+            <table className="w-full border-2 border-gray-300 mt-2">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border p-2 text-left"></th>
+                  <th className="border p-2 text-center">✅ Bien</th>
+                  <th className="border p-2 text-center">🔍 Regular</th>
+                  <th className="border p-2 text-center">⚠️ Requiere Cambio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { key: "aceite", label: "Aceite motor" },
+                  { key: "refrigerante", label: "Refrigerante" },
+                  { key: "freno_liquido", label: "Freno líquido" },
+                  { key: "embrague_liquido", label: "Embrague líquido" },
+                  { key: "servo_liquido", label: "Servodirección hidráulica" },
+                  { key: "limpiap_liquido", label: "Limpiaparabrisas" },
+                ].map(({ key, label }) => (
+                  <tr key={key}>
+                    <td className="border p-2">{label}</td>
+                    {["bien", "regular", "cambio"].map((v) => (
+                      <td key={v} className="border p-2 text-center">
+                        <input
+                          type="radio"
+                          name={key}
+                          value={v}
+                          defaultChecked={cuestionario[key] === v}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-{/* TABLA NIVELES DE LÍQUIDOS */}
-<div>
-  <strong>Niveles de líquidos:</strong>
-  <table className="w-full border-2 border-gray-300 mt-2">
-    <thead className="bg-gray-100">
-      <tr>
-        <th className="border p-2 text-left"></th>
-        <th className="border p-2 text-center">✅ Bien</th>
-        <th className="border p-2 text-center">🔍 Regular</th>
-        <th className="border p-2 text-center">⚠️ Requiere Cambio</th>
-      </tr>
-    </thead>
-    <tbody>
-      {[
-        { key: "aceite", label: "Aceite motor" },
-        { key: "refrigerante", label: "Refrigerante" },
-        { key: "freno_liquido", label: "Freno líquido" },
-        { key: "embrague_liquido", label: "Embrague líquido" },
-        {
-          key: "servo_liquido",
-          label: "Servodirección hidráulica",
-        },
-        { key: "limpiap_liquido", label: "Limpiaparabrisas" },
-      ].map(({ key, label }) => (
-        <tr key={key}>
-          <td className="border p-2">{label}</td>
-          {["bien", "regular", "cambio"].map((v) => (
-            <td key={v} className="border p-2 text-center">
-              <input
-                type="radio"
-                name={key}
-                value={v}
-                defaultChecked={cuestionario[key] === v}
-              />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>
+          {/* NUEVO: Inspección de fugas */}
+          <div className="mt-4">
+            <span className="font-medium block mb-2">Inspección de fugas:</span>
+            <div className="inline-flex items-center gap-6">
+              <label className="inline-flex items-center">
+                <input
+                  type="radio"
+                  name="inspeccion_fugas"
+                  value="si"
+                  defaultChecked={cuestionario.inspeccion_fugas === "si"}
+                  className="form-radio"
+                />
+                <span className="ml-2">Sí</span>
+              </label>
+              <label className="inline-flex items-center">
+                <input
+                  type="radio"
+                  name="inspeccion_fugas"
+                  value="no"
+                  defaultChecked={cuestionario.inspeccion_fugas === "no"}
+                  className="form-radio"
+                />
+                <span className="ml-2">No</span>
+              </label>
+            </div>
+          </div>
 
-{/* NUEVO: Inspección de fugas */}
-<div className="mt-4">
-  <span className="font-medium block mb-2">Inspección de fugas:</span>
-  <div className="inline-flex items-center gap-6">
-    <label className="inline-flex items-center">
-      <input
-        type="radio"
-        name="inspeccion_fugas"
-        value="si"
-        defaultChecked={cuestionario.inspeccion_fugas === "si"}
-        className="form-radio"
-      />
-      <span className="ml-2">Sí</span>
-    </label>
-    <label className="inline-flex items-center">
-      <input
-        type="radio"
-        name="inspeccion_fugas"
-        value="no"
-        defaultChecked={cuestionario.inspeccion_fugas === "no"}
-        className="form-radio"
-      />
-      <span className="ml-2">No</span>
-    </label>
-  </div>
-</div>
-
-{/* Observaciones (líquidos) */}
-<div>
-  <label className="block font-medium mt-4">
-    Observaciones (líquidos):
-  </label>
-  <textarea
-    name="obs_liquidos"
-    defaultValue={cuestionario.obs_liquidos || ""}
-    rows={2}
-    className="mt-1 w-full border-2 border-gray-300 px-2 py-1 rounded resize-none focus:border-red-500"
-  />
-</div>
-
+          {/* Observaciones (líquidos) */}
+          <div>
+            <label className="block font-medium mt-4">
+              Observaciones (líquidos):
+            </label>
+            <textarea
+              name="obs_liquidos"
+              defaultValue={cuestionario.obs_liquidos || ""}
+              rows={2}
+              className="mt-1 w-full border-2 border-gray-300 px-2 py-1 rounded resize-none focus:border-red-500"
+            />
+          </div>
 
           {/* TABLA NEUMÁTICOS */}
           <div>
@@ -461,6 +461,7 @@ export default function DiagnosticoFormPage() {
               </tbody>
             </table>
           </div>
+
           <div>
             <label className="block font-medium mt-4">
               Observaciones (neumáticos):
@@ -509,6 +510,7 @@ export default function DiagnosticoFormPage() {
               </tbody>
             </table>
           </div>
+
           <div>
             <label className="block font-medium mt-4">
               Observaciones (frenos):
@@ -522,146 +524,147 @@ export default function DiagnosticoFormPage() {
           </div>
 
           {/* Limpiaparabrisas */}
-<div className="mt-6">
-  <strong className="block mb-2">Limpiaparabrisas:</strong>
-  <table className="w-full border-2 border-gray-300">
-    <thead className="bg-gray-100">
-      <tr>
-        <th className="border p-2"></th>
-        <th className="border p-2 text-center">✅ Bien</th>
-        <th className="border p-2 text-center">🔍 Regular</th>
-        <th className="border p-2 text-center">⚠️ Requiere Cambio</th>
-      </tr>
-    </thead>
-    <tbody>
-      {[
-        { key: "limpia_func", label: "Funcionamiento" },
-        { key: "limpia_escobillas_di", label: "Estado de escobillas (DI)" },
-        { key: "limpia_escobillas_dd", label: "Estado de escobillas (DD)" },
-        { key: "limpia_escobillas_trasera", label: "Estado de escobillas (Trasera)" },
-        { key: "limpia_surt_di", label: "Surtidores de líquido (DI)" },
-        { key: "limpia_surt_dd", label: "Surtidores de líquido (DD)" },
-        { key: "limpia_surt_tr", label: "Surtidores de líquido (Trasero)" },
-      ].map(({ key, label }) => (
-        <tr key={key}>
-          <td className="border p-2">{label}</td>
-          {["bien", "regular", "cambio"].map((v) => (
-            <td key={v} className="border p-2 text-center">
-              <input
-                type="radio"
-                name={key}
-                value={v}
-                defaultChecked={cuestionario[key] === v}
-                className="form-radio"
-              />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>
+          <div className="mt-6">
+            <strong className="block mb-2">Limpiaparabrisas:</strong>
+            <table className="w-full border-2 border-gray-300">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border p-2"></th>
+                  <th className="border p-2 text-center">✅ Bien</th>
+                  <th className="border p-2 text-center">🔍 Regular</th>
+                  <th className="border p-2 text-center">⚠️ Requiere Cambio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { key: "limpia_func", label: "Funcionamiento" },
+                  { key: "limpia_escobillas_di", label: "Estado de escobillas (DI)" },
+                  { key: "limpia_escobillas_dd", label: "Estado de escobillas (DD)" },
+                  { key: "limpia_escobillas_trasera", label: "Estado de escobillas (Trasera)" },
+                  { key: "limpia_surt_di", label: "Surtidores de líquido (DI)" },
+                  { key: "limpia_surt_dd", label: "Surtidores de líquido (DD)" },
+                  { key: "limpia_surt_tr", label: "Surtidores de líquido (Trasero)" },
+                ].map(({ key, label }) => (
+                  <tr key={key}>
+                    <td className="border p-2">{label}</td>
+                    {["bien", "regular", "cambio"].map((v) => (
+                      <td key={v} className="border p-2 text-center">
+                        <input
+                          type="radio"
+                          name={key}
+                          value={v}
+                          defaultChecked={cuestionario[key] === v}
+                          className="form-radio"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-{/* Observaciones Limpiaparabrisas */}
-<div className="mt-4">
-  <label className="block font-medium">
-    Observaciones (limpiaparabrisas):
-  </label>
-  <textarea
-    name="obs_limpiaparabrisas"
-    defaultValue={cuestionario.obs_limpiaparabrisas || ""}
-    rows={2}
-    className="mt-1 w-full border-2 border-gray-300 px-2 py-1 rounded resize-none focus:border-red-500"
-  />
-</div>
+          {/* Observaciones Limpiaparabrisas */}
+          <div className="mt-4">
+            <label className="block font-medium">
+              Observaciones (limpiaparabrisas):
+            </label>
+            <textarea
+              name="obs_limpiaparabrisas"
+              defaultValue={cuestionario.obs_limpiaparabrisas || ""}
+              rows={2}
+              className="mt-1 w-full border-2 border-gray-300 px-2 py-1 rounded resize-none focus:border-red-500"
+            />
+          </div>
 
-{/* Otros elementos */}
-<div className="mt-6">
-  <strong className="block mb-2">Otros elementos:</strong>
-  <table className="w-full border-2 border-gray-300">
-    <thead className="bg-gray-100">
-      <tr>
-        <th className="border p-2"></th>
-        <th className="border p-2 text-center">✅ Bien</th>
-        <th className="border p-2 text-center">🔍 Regular</th>
-        <th className="border p-2 text-center">⚠️ Requiere Cambio</th>
-      </tr>
-    </thead>
-    <tbody>
-      {[
-        { key: "otros_rotulas", label: "Guardapolvos de rótulas" },
-        { key: "otros_fuelles", label: "Fuelles de transmisión" },
-        { key: "otros_amort", label: "Amortiguadores" },
-        { key: "otros_escape", label: "Línea de escape" },
-        { key: "otros_tanque", label: "Tanque de combustible" },
-        { key: "otros_cubre", label: "Cubre bajos" },
-      ].map(({ key, label }) => (
-        <tr key={key}>
-          <td className="border p-2">{label}</td>
-          {["bien", "regular", "cambio"].map((v) => (
-            <td key={v} className="border p-2 text-center">
-              <input
-                type="radio"
-                name={key}
-                value={v}
-                defaultChecked={cuestionario[key] === v}
-                className="form-radio"
-              />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>
+          {/* Otros elementos */}
+          <div className="mt-6">
+            <strong className="block mb-2">Otros elementos:</strong>
+            <table className="w-full border-2 border-gray-300">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border p-2"></th>
+                  <th className="border p-2 text-center">✅ Bien</th>
+                  <th className="border p-2 text-center">🔍 Regular</th>
+                  <th className="border p-2 text-center">⚠️ Requiere Cambio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { key: "otros_rotulas", label: "Guardapolvos de rótulas" },
+                  { key: "otros_fuelles", label: "Fuelles de transmisión" },
+                  { key: "otros_amort", label: "Amortiguadores" },
+                  { key: "otros_escape", label: "Línea de escape" },
+                  { key: "otros_tanque", label: "Tanque de combustible" },
+                  { key: "otros_cubre", label: "Cubre bajos" },
+                ].map(({ key, label }) => (
+                  <tr key={key}>
+                    <td className="border p-2">{label}</td>
+                    {["bien", "regular", "cambio"].map((v) => (
+                      <td key={v} className="border p-2 text-center">
+                        <input
+                          type="radio"
+                          name={key}
+                          value={v}
+                          defaultChecked={cuestionario[key] === v}
+                          className="form-radio"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-{/* Observaciones Otros elementos */}
-<div className="mt-4">
-  <label className="block font-medium">
-    Observaciones (otros elementos):
-  </label>
-  <textarea
-    name="obs_otros"
-    defaultValue={cuestionario.obs_otros || ""}
-    rows={2}
-    className="mt-1 w-full border-2 border-gray-300 px-2 py-1 rounded resize-none focus:border-red-500"
-  />
-</div>
+          {/* Observaciones Otros elementos */}
+          <div className="mt-4">
+            <label className="block font-medium">
+              Observaciones (otros elementos):
+            </label>
+            <textarea
+              name="obs_otros"
+              defaultValue={cuestionario.obs_otros || ""}
+              rows={2}
+              className="mt-1 w-full border-2 border-gray-300 px-2 py-1 rounded resize-none focus:border-red-500"
+            />
+          </div>
 
-{/* Estado de la batería */}
-<div className="mt-6">
-  <strong className="block mb-2">Estado de la batería:</strong>
-  <div className="inline-flex items-center gap-6">
-    {["correcto", "incorrecto", "carga"].map((v) => (
-      <label key={v} className="inline-flex items-center">
-        <input
-          type="radio"
-          name="bateria"
-          value={v}
-          defaultChecked={cuestionario.bateria === v}
-          className="form-radio"
-        />
-        <span className="ml-2">
-          {v === "carga" ? "Necesita Carga" : v.charAt(0).toUpperCase() + v.slice(1)}
-        </span>
-      </label>
-    ))}
-  </div>
-</div>
+          {/* Estado de la batería */}
+          <div className="mt-6">
+            <strong className="block mb-2">Estado de la batería:</strong>
+            <div className="inline-flex items-center gap-6">
+              {["correcto", "incorrecto", "carga"].map((v) => (
+                <label key={v} className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    name="bateria"
+                    value={v}
+                    defaultChecked={cuestionario.bateria === v}
+                    className="form-radio"
+                  />
+                  <span className="ml-2">
+                    {v === "carga"
+                      ? "Necesita Carga"
+                      : v.charAt(0).toUpperCase() + v.slice(1)}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
 
-{/* Observaciones Batería */}
-<div className="mt-4">
-  <label className="block font-medium">
-    Observaciones (batería):
-  </label>
-  <textarea
-    name="obs_bateria"
-    defaultValue={cuestionario.obs_bateria || ""}
-    rows={2}
-    className="mt-1 w-full border-2 border-gray-300 px-2 py-1 rounded resize-none focus:border-red-500"
-  />
-</div>
-
+          {/* Observaciones Batería */}
+          <div className="mt-4">
+            <label className="block font-medium">
+              Observaciones (batería):
+            </label>
+            <textarea
+              name="obs_bateria"
+              defaultValue={cuestionario.obs_bateria || ""}
+              rows={2}
+              className="mt-1 w-full border-2 border-gray-300 px-2 py-1 rounded resize-none focus:border-red-500"
+            />
+          </div>
 
           {/* BOTÓN GUARDAR */}
           <div className="text-center mt-6">
