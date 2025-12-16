@@ -103,7 +103,12 @@ export default function RecambiosFormPage() {
       // Cargar checklist asociado
       const chkSnap = await getDoc(doc(db, "checklists", id));
       if (chkSnap.exists()) {
-        setCheckData(chkSnap.data().datos || {});
+        const d = chkSnap.data().datos || {};
+        setCheckData(d);
+        try {
+          const n = (d.nombreCliente || "").trim();
+          document.title = `${d.matricula} - ${d.numeroOR} - ${n} - Recambios`.replace(/\s+-\s+-/g, " - ").trim();
+        } catch (e) {}
       }
       setLoading(false);
     })();
@@ -112,6 +117,9 @@ export default function RecambiosFormPage() {
   const handleSave = async (entries) => {
     await setDoc(doc(db, "recambios", id), {
       checklistId: id,
+      matricula: checkData.matricula || "",
+      numeroOR: checkData.numeroOR || "",
+      nombreCliente: checkData.nombreCliente || "",
       datos: entries,
       uidAsesor: auth.currentUser.uid,
       creadoEn: serverTimestamp(),
