@@ -47,18 +47,15 @@ export default function ClienteFormPage() {
     setError("");
     try {
       const datos = readFormData();
-    // guardado con ID personalizado: matricula-numeroOR
-    const docId = `${datos.matricula}-${datos.numeroOR}`;
-    await setDoc(
-      doc(db, "cuestionarios_cliente", docId),
-      {
+      // guardado con ID personalizado: matricula-numeroOR
+      const docId = `${datos.matricula}-${datos.numeroOR}`;
+      await setDoc(doc(db, "cuestionarios_cliente", docId), {
         uidAsesor: user.uid,
         creadoEn: serverTimestamp(),
         estado: "PENDIENTE_DIAGNOSTICO",
         estadoPresupuesto: "PENDIENTE_PRESUPUESTO",
         datos,
-      }
-    );
+      });
       router.push("/dashboard");
     } catch (err) {
       console.error(err);
@@ -92,76 +89,155 @@ export default function ClienteFormPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold">Matrícula:</label>
-              <input name="matricula" type="text" required className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="matricula"
+                type="text"
+                required
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
             <div>
               <label className="block text-xs font-bold">Nombre:</label>
-              <input name="nombreCliente" type="text" required className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="nombreCliente"
+                type="text"
+                required
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
 
             <div>
-              <label className="block text-xs font-bold">Teléfono Cliente:</label>
-              <input name="telefonoCliente" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <label className="block text-xs font-bold">
+                Teléfono Cliente:
+              </label>
+              <input
+                name="telefonoCliente"
+                type="text"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
             <div>
               <label className="block text-xs font-bold">Nº OR:</label>
-              <input name="numeroOR" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="numeroOR"
+                type="text"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
 
             <div>
               <label className="block text-xs font-bold">Ciclo:</label>
-              <input name="ciclo" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="ciclo"
+                type="text"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
             <div>
               <label className="block text-xs font-bold">Marca/Modelo:</label>
-              <input name="marcaModelo" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="marcaModelo"
+                type="text"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
 
             <div>
               <label className="block text-xs font-bold">Fecha Cita:</label>
-              <input name="fechaCita" type="date" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="fechaCita"
+                type="date"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
             <div>
               <label className="block text-xs font-bold">Fecha Salida:</label>
-              <input name="fechaSalida" type="date" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="fechaSalida"
+                type="date"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
+            </div>
+
+            {/* Asesor (justo después de fechas) */}
+            <div>
+              <label className="block text-xs font-bold">Asesor:</label>
+              <input
+                name="asesor"
+                type="text"
+                required
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
           </div>
 
-{/* Descripción síntoma */}
+          {/* Descripción síntoma */}
           <div>
-            <label className="block text-xs font-bold">Descripción del síntoma:</label>
-            <textarea name="descripcion" rows={3} className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+            <label className="block text-xs font-bold">
+              Descripción del síntoma:
+            </label>
+            <textarea
+              name="descripcion"
+              rows={3}
+              className="mt-1 w-full border px-2 py-1 text-sm rounded"
+            />
           </div>
 
           {/* Testigos / mensajes */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold">Testigos:</label>
-              <input name="testigos" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="testigos"
+                type="text"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
             <div>
               <label className="block text-xs font-bold">Mensajes:</label>
-              <input name="mensajes" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="mensajes"
+                type="text"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
           </div>
 
-          <div><label className="block text-xs font-bold mb-1">Detalles del síntoma</label></div>
+          <div>
+            <label className="block text-xs font-bold mb-1">
+              Detalles del síntoma
+            </label>
+          </div>
 
           {/* Tipo */}
           <div>
             <label className="block text-xs font-bold mb-1">Tipo:</label>
             <div className="flex gap-4 text-sm">
               <label className="inline-flex items-center">
-                <input type="checkbox" name="tipo" value="ruido" className="form-checkbox mr-1" />
+                <input
+                  type="checkbox"
+                  name="tipo"
+                  value="ruido"
+                  className="form-checkbox mr-1"
+                />
                 Ruido
               </label>
               <label className="inline-flex items-center">
-                <input type="checkbox" name="tipo" value="vibracion" className="form-checkbox mr-1" />
+                <input
+                  type="checkbox"
+                  name="tipo"
+                  value="vibracion"
+                  className="form-checkbox mr-1"
+                />
                 Vibración
               </label>
               <label className="inline-flex items-center">
                 Otro:
-                <input name="tipoOtro" type="text" className="ml-1 w-24 border px-1 text-sm rounded" />
+                <input
+                  name="tipoOtro"
+                  type="text"
+                  className="ml-1 w-24 border px-1 text-sm rounded"
+                />
               </label>
             </div>
           </div>
@@ -170,9 +246,21 @@ export default function ClienteFormPage() {
           <div>
             <label className="block text-xs font-bold mb-1">Categoría:</label>
             <div className="flex flex-wrap gap-4 text-sm">
-              {["Motor", "Chasis", "Electrónica", "Dirección", "Frenos", "SistemaHibrido"].map((cat) => (
+              {[
+                "Motor",
+                "Chasis",
+                "Electrónica",
+                "Dirección",
+                "Frenos",
+                "SistemaHibrido",
+              ].map((cat) => (
                 <label key={cat} className="inline-flex items-center">
-                  <input type="checkbox" name="categoria" value={cat} className="form-checkbox mr-1" />
+                  <input
+                    type="checkbox"
+                    name="categoria"
+                    value={cat}
+                    className="form-checkbox mr-1"
+                  />
                   {cat}
                 </label>
               ))}
@@ -182,81 +270,153 @@ export default function ClienteFormPage() {
           {/* Comentarios */}
           <div>
             <label className="block text-xs font-bold">Comentarios:</label>
-            <input name="comentarios" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+            <input
+              name="comentarios"
+              type="text"
+              className="mt-1 w-full border px-2 py-1 text-sm rounded"
+            />
           </div>
 
           {/* ¿En qué parte? */}
           <div>
-            <label className="block text-xs font-bold">¿En qué parte del coche ocurre?</label>
-            <input name="parteCoche" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+            <label className="block text-xs font-bold">
+              ¿En qué parte del coche ocurre?
+            </label>
+            <input
+              name="parteCoche"
+              type="text"
+              className="mt-1 w-full border px-2 py-1 text-sm rounded"
+            />
           </div>
 
           {/* ¿Desde cuándo? */}
           <div>
-            <label className="block text-xs font-bold mb-1">¿Desde cuándo?</label>
+            <label className="block text-xs font-bold mb-1">
+              ¿Desde cuándo?
+            </label>
             <div className="flex gap-4 text-sm">
               <label className="inline-flex items-center">
-                <input type="checkbox" name="desde" value="1dia" className="form-checkbox mr-1" />
+                <input
+                  type="checkbox"
+                  name="desde"
+                  value="1dia"
+                  className="form-checkbox mr-1"
+                />
                 1 día o menos
               </label>
               <label className="inline-flex items-center">
-                <input type="checkbox" name="desde" value="1semana" className="form-checkbox mr-1" />
+                <input
+                  type="checkbox"
+                  name="desde"
+                  value="1semana"
+                  className="form-checkbox mr-1"
+                />
                 &gt; 1 semana
               </label>
               <label className="inline-flex items-center">
                 Otro:
-                <input name="desdeOtro" type="text" className="ml-1 w-24 border px-1 text-sm rounded" />
+                <input
+                  name="desdeOtro"
+                  type="text"
+                  className="ml-1 w-24 border px-1 text-sm rounded"
+                />
               </label>
             </div>
           </div>
 
           {/* Frecuencia */}
           <div>
-            <label className="block text-xs font-bold mb-1">¿Con qué frecuencia?</label>
+            <label className="block text-xs font-bold mb-1">
+              ¿Con qué frecuencia?
+            </label>
             <div className="flex gap-4 text-sm">
               {["1vez", "Ocasionalmente", "Siempre"].map((opt, i) => (
                 <label key={i} className="inline-flex items-center">
-                  <input type="checkbox" name="frecuencia" value={opt} className="form-checkbox mr-1" />
+                  <input
+                    type="checkbox"
+                    name="frecuencia"
+                    value={opt}
+                    className="form-checkbox mr-1"
+                  />
                   {opt === "1vez" ? "1 vez al día" : opt}
                 </label>
               ))}
               <label className="inline-flex items-center">
                 Otro:
-                <input name="frecuenciaOtro" type="text" className="ml-1 w-24 border px-1 text-sm rounded" />
+                <input
+                  name="frecuenciaOtro"
+                  type="text"
+                  className="ml-1 w-24 border px-1 text-sm rounded"
+                />
               </label>
             </div>
           </div>
 
           {/* Dónde ocurre */}
           <div>
-            <label className="block text-xs font-bold mb-1">¿Dónde ocurre?</label>
+            <label className="block text-xs font-bold mb-1">
+              ¿Dónde ocurre?
+            </label>
             <div className="flex flex-wrap gap-4 text-sm">
-              {["Nacional", "Autopista", "Ciudad", "Adoquines", "Tierra", "Baches"].map((opt) => (
+              {[
+                "Nacional",
+                "Autopista",
+                "Ciudad",
+                "Adoquines",
+                "Tierra",
+                "Baches",
+              ].map((opt) => (
                 <label key={opt} className="inline-flex items-center">
-                  <input type="checkbox" name="donde" value={opt} className="form-checkbox mr-1" />
+                  <input
+                    type="checkbox"
+                    name="donde"
+                    value={opt}
+                    className="form-checkbox mr-1"
+                  />
                   {opt}
                 </label>
               ))}
               <label className="inline-flex items-center">
                 Otro:
-                <input name="dondeOtro" type="text" className="ml-1 w-24 border px-1 text-sm rounded" />
+                <input
+                  name="dondeOtro"
+                  type="text"
+                  className="ml-1 w-24 border px-1 text-sm rounded"
+                />
               </label>
             </div>
           </div>
 
           {/* Condiciones exteriores */}
           <div>
-            <label className="block text-xs font-bold mb-1">Condiciones exteriores:</label>
+            <label className="block text-xs font-bold mb-1">
+              Condiciones exteriores:
+            </label>
             <div className="flex flex-wrap gap-4 text-sm">
-              {["Mojado", "Seco", "Viento", "VehiculoFrio", "VehiculoCaliente"].map((opt) => (
+              {[
+                "Mojado",
+                "Seco",
+                "Viento",
+                "VehiculoFrio",
+                "VehiculoCaliente",
+              ].map((opt) => (
                 <label key={opt} className="inline-flex items-center">
-                  <input type="checkbox" name="condiciones" value={opt} className="form-checkbox mr-1" />
+                  <input
+                    type="checkbox"
+                    name="condiciones"
+                    value={opt}
+                    className="form-checkbox mr-1"
+                  />
                   {opt}
                 </label>
               ))}
               <label className="inline-flex items-center">
                 Otro:
-                <input name="condicionesOtro" type="text" className="ml-1 w-24 border px-1 text-sm rounded" />
+                <input
+                  name="condicionesOtro"
+                  type="text"
+                  className="ml-1 w-24 border px-1 text-sm rounded"
+                />
               </label>
             </div>
           </div>
@@ -266,11 +426,25 @@ export default function ClienteFormPage() {
             <label className="block text-xs font-bold mb-1">¿Cómo ocurre?</label>
             <div className="flex flex-wrap gap-4 text-sm">
               {[
-                "Aparcando","Acelerando","Ralenti","CambioMarcha","Reteniendo",
-                "EnRecta","Remolque","MuyCargado","Seco","CurvasIzq","CurvasDer"
+                "Aparcando",
+                "Acelerando",
+                "Ralenti",
+                "CambioMarcha",
+                "Reteniendo",
+                "EnRecta",
+                "Remolque",
+                "MuyCargado",
+                "Seco",
+                "CurvasIzq",
+                "CurvasDer",
               ].map((opt) => (
                 <label key={opt} className="inline-flex items-center">
-                  <input type="checkbox" name="como" value={opt} className="form-checkbox mr-1" />
+                  <input
+                    type="checkbox"
+                    name="como"
+                    value={opt}
+                    className="form-checkbox mr-1"
+                  />
                   {opt}
                 </label>
               ))}
@@ -281,32 +455,41 @@ export default function ClienteFormPage() {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold">Posición cambio:</label>
-              <input name="posicionCambio" type="number" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="posicionCambio"
+                type="number"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
             <div>
               <label className="block text-xs font-bold">Velocidad (Km/h):</label>
-              <input name="velocidad" type="number" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="velocidad"
+                type="number"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
             <div>
               <label className="block text-xs font-bold">Revoluciones (rpm):</label>
-              <input name="revoluciones" type="number" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+              <input
+                name="revoluciones"
+                type="number"
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              />
             </div>
           </div>
 
           {/* Otro texto libre */}
           <div>
             <label className="block text-xs font-bold">Otro:</label>
-            <input name="otroLibre" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
+            <input
+              name="otroLibre"
+              type="text"
+              className="mt-1 w-full border px-2 py-1 text-sm rounded"
+            />
           </div>
 
-          
-          {/* Asesor */}
-          <div>
-            <label className="block text-xs font-bold">Asesor:</label>
-            <input name="asesor" type="text" className="mt-1 w-full border px-2 py-1 text-sm rounded" />
-          </div>
-
-{error && <p className="text-red-600 text-sm">{error}</p>}
+          {error && <p className="text-red-600 text-sm">{error}</p>}
 
           <div className="text-center">
             <button
