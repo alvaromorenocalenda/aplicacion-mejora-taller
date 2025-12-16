@@ -8,6 +8,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -76,6 +77,10 @@ export default function DiagnosticoFormPage() {
       };
   
       setCuestionario(datosCombinados);
+      try {
+        const n = datosCombinados.nombreCliente || "";
+        document.title = `${datosCombinados.matricula} - ${datosCombinados.numeroOR} - ${n} - Diagnostico`.replace(/\s+-\s+-/g, " - ").trim();
+      } catch (e) {}
       setLoading(false);
     })();
   }, [id, router]);
@@ -138,6 +143,7 @@ export default function DiagnosticoFormPage() {
         </h2>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Matrícula" value={asList(cuestionario.matricula)} />
+          <Field label="Nombre" value={asList(cuestionario.nombreCliente)} />
           <Field
             label="Fecha de Cita"
             value={asList(cuestionario.fechaCita)}
@@ -279,6 +285,9 @@ export default function DiagnosticoFormPage() {
               </div>
             ))}
           </div>
+
+          <input type="hidden" name="nombreCliente" defaultValue={cuestionario.nombreCliente || ""} />
+          <input type="hidden" name="telefonoCliente" defaultValue={cuestionario.telefonoCliente || ""} />
 
           {/* MENSAJES */}
           <div>
