@@ -192,7 +192,7 @@ const handleFinalizar = async (id) => {
 
   // Filtrar items según el término de búsqueda
   const filteredItems = items.filter(({ datos }) => {
-    const hay = [datos.matricula, datos.numeroOR, datos.modelo]
+    const hay = [datos.matricula, datos.numeroOR, datos.nombreCliente, datos.marcaModelo]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
@@ -273,7 +273,7 @@ const handleFinalizar = async (id) => {
         <div className="relative mb-4">
           <input
             type="text"
-            placeholder="🔍 Buscar matrícula o número de orden..."
+            placeholder="🔍 Buscar matrícula, nº OR o nombre..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300"
@@ -290,7 +290,7 @@ const handleFinalizar = async (id) => {
             >
               <div>
                 <p className="font-medium">
-                  {datos.matricula} — {datos.numeroOR}
+                  {datos.matricula} — {datos.numeroOR} — {datos.nombreCliente || ""}
                 </p>
                 <p className="text-sm text-gray-500">
                   Creado: {creadoEn.toDate().toLocaleString()}
