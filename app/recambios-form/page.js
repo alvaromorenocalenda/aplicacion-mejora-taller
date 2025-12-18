@@ -281,7 +281,7 @@ const handleFinalizarPresupuesto = async (checklistId) => {
           </div>
             <div className="flex gap-2">
               <button
-                onClick={() => router.push(`/chat-trabajo/${c.cuestionarioId || c.id}?canal=recambios`)}
+                onClick={() => router.push(`/chat-trabajo/${c.cuestionarioId || c.id}`)}
                 className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
               >
                 Chat
@@ -330,7 +330,7 @@ const handleFinalizarPresupuesto = async (checklistId) => {
             </div>
             <div className="flex space-x-2">
               <button
-                onClick={() => router.push(`/chat-trabajo/${c.cuestionarioId || c.id}?canal=recambios`)}
+                onClick={() => router.push(`/chat-trabajo/${c.cuestionarioId || c.id}`)}
                 className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
               >
                 Chat
