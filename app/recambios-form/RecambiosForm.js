@@ -71,7 +71,7 @@ export default function RecambiosForm({
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Letra</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Referencia anterior</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Marca anterior</th>
-                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] min-w-[250px]">Descripción</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] min-w-[340px]">Descripción</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Diagnosticador</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Observaciones</th>
                   </tr>
