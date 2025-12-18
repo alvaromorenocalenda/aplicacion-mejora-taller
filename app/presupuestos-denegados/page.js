@@ -14,6 +14,8 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
+import { deleteChatTrabajo } from "../../lib/chatCleanup";
+
 // clave para confirmar borrado
 const CONFIRM_KEY = "CALENDABORRAR";
 // clave para reabrir presupuesto
@@ -57,6 +59,9 @@ export default function PresupuestosDenegadosPage() {
       alert("Clave incorrecta. Operación cancelada.");
       return;
     }
+    // Borrar chat asociado (si existe)
+    await deleteChatTrabajo(db, itemId);
+
     // confirmaciones encadenadas
     if (confirm("¿Deseas borrar el cuestionario cliente asociado?")) {
       await deleteDoc(doc(db, "cuestionarios_cliente", itemId));
@@ -147,6 +152,10 @@ export default function PresupuestosDenegadosPage() {
                   <p className="font-medium">{mat} — {or}</p>
                   <div className="space-x-2">
                     <button
+                      onClick={() => router.push(`/chat-trabajo/${c.id}?canal=general`)}
+                      className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
+                    >Chat</button>
+                    <button
                       onClick={() => router.push(`/cliente-form/${c.id}?view=true`)}
                       className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
                     >Ver</button>
@@ -199,6 +208,10 @@ export default function PresupuestosDenegadosPage() {
                   <p className="font-medium">{mat} — {or}</p>
                   <div className="space-x-2">
                     <button
+                      onClick={() => router.push(`/chat-trabajo/${c.id}?canal=diagnostico`)}
+                      className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
+                    >Chat</button>
+                    <button
                       onClick={() => router.push(`/diagnostico-form/${c.id}/detalle`)}
                       className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
                     >Ver</button>
@@ -250,6 +263,10 @@ export default function PresupuestosDenegadosPage() {
                 >
                   <p className="font-medium">{mat} — {or}</p>
                   <div className="space-x-2">
+                    <button
+                      onClick={() => router.push(`/chat-trabajo/${c.id}?canal=recambios`)}
+                      className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
+                    >Chat</button>
                     <button
                       onClick={() => router.push(`/recambios-form/${c.id}/detalle`)}
                       className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
