@@ -163,23 +163,12 @@ export default function RecambiosFormPage() {
       <section className="bg-white p-6 rounded shadow w-[95vw] max-w-none overflow-visible">
         <div className="flex items-center justify-between gap-4 mb-4">
           <h2 className="text-xl font-semibold">Datos de Recambios</h2>
-
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-700">Estado:</span>
-            <select
-              value={estadoRecambios}
-              onChange={(e) => setEstadoRecambios(e.target.value)}
-              className="px-3 py-2 rounded border bg-white"
-            >
-              <option value="SIN_INICIAR">Sin iniciar</option>
-              <option value="EN_PROCESO">En proceso</option>
-              <option value="FINALIZADO">Finalizado</option>
-            </select>
-          </div>
         </div>
         <RecambiosForm
           initialEntries={initialEntries}
           onSubmit={handleSave}
+          estadoRecambios={estadoRecambios}
+          onEstadoChange={setEstadoRecambios}
         />
       </section>
 
