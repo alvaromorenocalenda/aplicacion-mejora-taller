@@ -12,6 +12,7 @@ export default function RecambiosDetailPage() {
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState([]);
   const [estadoRecambios, setEstadoRecambios] = useState("SIN_INICIAR");
+  const [cuestionarioId, setCuestionarioId] = useState(null);
 
   useEffect(() => {
     if (!auth.currentUser) { router.replace("/login"); return; }
@@ -22,6 +23,18 @@ export default function RecambiosDetailPage() {
         const data = snap.data();
         setEntries(data.datos || []);
         setEstadoRecambios(data.estadoRecambios || "SIN_INICIAR");
+        const checklistId = data.checklistId;
+        if (checklistId) {
+          try {
+            const snapChecklist = await getDoc(doc(db, "checklists", checklistId));
+            if (snapChecklist.exists()) {
+              const checklistDoc = snapChecklist.data() || {};
+              setCuestionarioId(checklistDoc.cuestionarioId || null);
+            }
+          } catch (e) {
+            console.warn("No se pudo cargar cuestionarioId desde checklist:", e);
+          }
+        }
       }
       setLoading(false);
     })();
@@ -40,7 +53,18 @@ return (
     </button>
 
     <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
+      <div className="flex items-center gap-3 flex-wrap">
       <h1 className="text-3xl font-bold">Recambios para checklist {id}</h1>
+      {cuestionarioId && (
+        <button
+          onClick={() => router.push(`/chat-trabajo/${cuestionarioId}?canal=recambios`)}
+          className="px-4 py-2 bg-pink-600 text-white rounded hover:bg-pink-700"
+        >
+          Chat
+        </button>
+      )}
+    </div>
+
       <span
         className={`px-3 py-1 rounded text-sm font-semibold ${
           estadoRecambios === "FINALIZADO"
