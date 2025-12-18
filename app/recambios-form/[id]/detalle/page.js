@@ -70,7 +70,8 @@ return (
             <th className="px-4 py-2 border-r-4 border-white">Observaciones</th>
             <th className="px-4 py-2">Referencia tramitada</th>
             <th className="px-4 py-2">Fecha pedido</th>
-            <th className="px-4 py-2">Proveedor</th>
+            {/* Proveedor más estrecho (Descripción se mantiene igual) */}
+            <th className="px-4 py-2 w-[180px] min-w-[160px]">Proveedor</th>
             <th className="px-4 py-2">Transporte</th>
             <th className="px-4 py-2">Fecha prevista</th>
             <th className="px-4 py-2">Fecha llegada</th>
@@ -94,7 +95,7 @@ return (
               </td>
               <td className="px-4 py-2">{e.referenciaTramitada || "—"}</td>
               <td className="px-4 py-2">{e.fechaPedido || "—"}</td>
-              <td className="px-4 py-2">{e.proveedor || "—"}</td>
+              <td className="px-4 py-2 w-[180px] min-w-[160px]">{e.proveedor || "—"}</td>
               <td className="px-4 py-2">{e.transporte || "—"}</td>
               <td className="px-4 py-2">{e.fechaPrevista || "—"}</td>
               <td className="px-4 py-2">{e.fechaLlegada || "—"}</td>
