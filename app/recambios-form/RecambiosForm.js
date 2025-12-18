@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
 
 export default function RecambiosForm({
   initialEntries = [],   // filas iniciales
   onSubmit,              // callback para “Guardar”
-  readOnly = false       // si es true, oculta botones
+  readOnly = false,      // si es true, oculta botones
+  estadoRecambios = "SIN_INICIAR",
+  onEstadoChange,
 }) {
   const [entries, setEntries] = useState(initialEntries);
 
@@ -70,7 +71,7 @@ export default function RecambiosForm({
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Letra</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Referencia anterior</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Marca anterior</th>
-                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Descripción</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] min-w-[340px]">Descripción</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Diagnosticador</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Observaciones</th>
                   </tr>
@@ -93,12 +94,12 @@ export default function RecambiosForm({
                         className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm"
                       />
                     </td>
-                    <td className="border px-2 py-1">
+                    <td className="border px-2 py-1 min-w-[340px]">
                       <input
                         type="text"
                         value={e.descripcion}
                         onChange={ev => handleChange(idx, "descripcion", ev.target.value)}
-                        className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm"
+                        className="w-full min-w-[340px] bg-[#E3F2FD] px-2 py-1 rounded text-sm"
                       />
                     </td>
                     <td className="border px-2 py-1">
@@ -218,19 +219,35 @@ export default function RecambiosForm({
       </div>
 
       {!readOnly && (
-        <div className="mt-6 flex justify-between">
+        <div className="mt-6 flex justify-between gap-4">
           <button
             onClick={addEntry}
             className="px-6 py-2 bg-[#A8E6CF] text-[#1F433D] rounded hover:bg-[#8ED8B2]"
           >
             + Añadir fila
           </button>
-          <button
-            onClick={handleSave}
-            className="px-6 py-2 bg-[#FFD3B6] text-[#6F3E18] rounded hover:bg-[#FFC39E]"
-          >
-            💾 Guardar Recambios
-          </button>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-700">Estado:</span>
+              <select
+                value={estadoRecambios}
+                onChange={(e) => onEstadoChange?.(e.target.value)}
+                className="px-3 py-2 rounded border bg-white"
+              >
+                <option value="SIN_INICIAR">Sin iniciar</option>
+                <option value="EN_PROCESO">En proceso</option>
+                <option value="FINALIZADO">Finalizado</option>
+              </select>
+            </div>
+
+            <button
+              onClick={handleSave}
+              className="px-6 py-2 bg-[#FFD3B6] text-[#6F3E18] rounded hover:bg-[#FFC39E]"
+            >
+              💾 Guardar Recambios
+            </button>
+          </div>
         </div>
       )}
     </div>
