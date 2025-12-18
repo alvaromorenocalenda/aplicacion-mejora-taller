@@ -156,7 +156,7 @@ export default function ChatsPage() {
 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => router.push(`/chat-trabajo/${id}?canal=${c.lastChannel || "general"}`)}
+                    onClick={() => router.push(`/chat-trabajo/${id}`)}
                     className="px-4 py-2 bg-pink-500 text-white rounded hover:bg-pink-600"
                   >
                     Abrir chat
