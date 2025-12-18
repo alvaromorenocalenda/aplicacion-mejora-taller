@@ -244,7 +244,7 @@ export default function DiagnosticosPage() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => router.push(`/chat-trabajo/${c.id}?canal=diagnostico`)}
+                    onClick={() => router.push(`/chat-trabajo/${c.id}`)}
                     className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
                   >
                     Chat
@@ -299,7 +299,7 @@ export default function DiagnosticosPage() {
                 </div>
                 <div className="space-x-2">
                 <button
-                  onClick={() => router.push(`/chat-trabajo/${c.id}?canal=diagnostico`)}
+                  onClick={() => router.push(`/chat-trabajo/${c.id}`)}
                   className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
                 >
                   Chat
