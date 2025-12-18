@@ -69,6 +69,7 @@ export default function RecambiosFormPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [existing, setExisting] = useState(null);
+  const [estadoRecambios, setEstadoRecambios] = useState("SIN_INICIAR");
   const [initialEntries, setInitialEntries] = useState([
     {
       referenciaAnterior: "",
@@ -99,6 +100,10 @@ export default function RecambiosFormPage() {
         const data = recSnap.data();
         setExisting(data);
         setInitialEntries(data.datos);
+        setEstadoRecambios(data.estadoRecambios || "SIN_INICIAR");
+      } else {
+        // Si aún no existe el documento de recambios, empezamos en "Sin iniciar"
+        setEstadoRecambios("SIN_INICIAR");
       }
       // Cargar checklist asociado
       const chkSnap = await getDoc(doc(db, "checklists", id));
@@ -115,16 +120,21 @@ export default function RecambiosFormPage() {
   }, [id, router]);
 
   const handleSave = async (entries) => {
-    await setDoc(doc(db, "recambios", id), {
+    const payload = {
       checklistId: id,
       matricula: checkData.matricula || "",
       numeroOR: checkData.numeroOR || "",
       nombreCliente: checkData.nombreCliente || "",
       datos: entries,
+      estadoRecambios,
       uidAsesor: auth.currentUser.uid,
-      creadoEn: serverTimestamp(),
-      estadoPresupuesto: "PENDIENTE_PRESUPUESTO",  // ← aquí lo añades
-    });
+      estadoPresupuesto: "PENDIENTE_PRESUPUESTO",
+      actualizadoEn: serverTimestamp(),
+    };
+    // Solo ponemos creadoEn la primera vez
+    if (!existing?.creadoEn) payload.creadoEn = serverTimestamp();
+
+    await setDoc(doc(db, "recambios", id), payload, { merge: true });
     router.push("/recambios-form");
   };
 
@@ -151,7 +161,22 @@ export default function RecambiosFormPage() {
 
       {/* Formulario de Recambios */}
       <section className="bg-white p-6 rounded shadow w-[95vw] max-w-none overflow-visible">
-        <h2 className="text-xl font-semibold mb-4">Datos de Recambios</h2>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <h2 className="text-xl font-semibold">Datos de Recambios</h2>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-700">Estado:</span>
+            <select
+              value={estadoRecambios}
+              onChange={(e) => setEstadoRecambios(e.target.value)}
+              className="px-3 py-2 rounded border bg-white"
+            >
+              <option value="SIN_INICIAR">Sin iniciar</option>
+              <option value="EN_PROCESO">En proceso</option>
+              <option value="FINALIZADO">Finalizado</option>
+            </select>
+          </div>
+        </div>
         <RecambiosForm
           initialEntries={initialEntries}
           onSubmit={handleSave}
