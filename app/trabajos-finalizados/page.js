@@ -101,7 +101,7 @@ export default function TrabajosFinalizadosPage() {
                 <p className="font-medium">{mat} — {or}</p>
                 <div className="space-x-2">
                   <button
-                    onClick={() => router.push(`/chat-trabajo/${c.id}?canal=general`)}
+                    onClick={() => router.push(`/chat-trabajo/${c.id}`)}
                     className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
                   >Chat</button>
                   <button
@@ -140,7 +140,7 @@ export default function TrabajosFinalizadosPage() {
                 <p className="font-medium">{mat} — {or}</p>
                 <div className="space-x-2">
                   <button
-                    onClick={() => router.push(`/chat-trabajo/${c.id}?canal=diagnostico`)}
+                    onClick={() => router.push(`/chat-trabajo/${c.id}`)}
                     className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
                   >Chat</button>
                   <button
@@ -179,7 +179,7 @@ export default function TrabajosFinalizadosPage() {
                 <p className="font-medium">{mat} — {or}</p>
                 <div className="space-x-2">
                   <button
-                    onClick={() => router.push(`/chat-trabajo/${c.id}?canal=recambios`)}
+                    onClick={() => router.push(`/chat-trabajo/${c.id}`)}
                     className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
                   >Chat</button>
                   <button
