@@ -43,26 +43,51 @@ export default function RecambiosListPage() {
       );
       const checks = chkSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // Traer solo recambios con presupuesto pendiente
+      // Traer solo recambios con presupuesto pendiente (incluyendo estadoRecambios)
       const recSnap = await getDocs(
         query(
           collection(db, "recambios"),
           where("estadoPresupuesto", "==", "PENDIENTE_PRESUPUESTO")
         )
       );
-      const hechos = new Set(recSnap.docs.map(d => d.id));
+      const recById = new Map(recSnap.docs.map(d => [d.id, d.data()]));
 
       const pend = [];
       const real = [];
       for (const c of checks) {
-        if (hechos.has(c.id)) real.push(c);
-        else pend.push(c);
+        const rec = recById.get(c.id);
+        const estado = rec?.estadoRecambios || "SIN_INICIAR";
+        const item = { ...c, estadoRecambios: estado };
+        if (rec && estado === "FINALIZADO") real.push(item);
+        else pend.push(item);
       }
 
       setPendientes(pend);
       setRealizados(real);
     })();
   }, []);
+
+  const estadoLabel = (estado) => {
+    switch (estado) {
+      case "EN_PROCESO":
+        return "En proceso";
+      case "FINALIZADO":
+        return "Finalizado";
+      default:
+        return "Sin iniciar";
+    }
+  };
+
+  const estadoBadgeClass = (estado) => {
+    switch (estado) {
+      case "EN_PROCESO":
+        return "bg-yellow-300 text-yellow-900";
+      case "FINALIZADO":
+        return "bg-green-400 text-green-900";
+      default:
+        return "bg-gray-300 text-gray-800";
+    }
+  };
 
   // Borrar checklist y cuestionario
 const handleDelete = async (checklistId, datos) => {
@@ -227,15 +252,22 @@ const handleFinalizarPresupuesto = async (checklistId) => {
           >
 
           <div className="flex-grow">
-            <p className="font-medium">{c.datos.matricula} — {c.datos.numeroOR}</p>
-            <p className="text-sm text-gray-500">
-              Completado: {c.completadoEn.toDate().toLocaleString()}
+            <div className="flex items-center gap-3 flex-wrap">
+              <p className="font-medium">{c.datos.matricula} — {c.datos.numeroOR}</p>
+              <span
+                className={`px-3 py-1 rounded text-xs font-semibold ${estadoBadgeClass(c.estadoRecambios)}`}
+              >
+                {estadoLabel(c.estadoRecambios)}
+              </span>
+            </div>
+            <div className="text-sm text-gray-500">
+              <div>Completado: {c.completadoEn.toDate().toLocaleString()}</div>
               {c.checklistEditada && (
-              <p className="text-sm text-yellow-800 font-semibold mt-1">
-                ⚠️ Checklist modificada tras añadir recambios
-              </p>
-            )}
-            </p>
+                <div className="text-sm text-yellow-800 font-semibold mt-1">
+                  ⚠️ Checklist modificada tras añadir recambios
+                </div>
+              )}
+            </div>
           </div>
             <button
               onClick={() => router.push(`/recambios-form/${c.id}`)}
@@ -266,7 +298,14 @@ const handleFinalizarPresupuesto = async (checklistId) => {
             className="flex items-center bg-green-100 p-4 mb-2 rounded"
           >
             <div className="flex-grow">
-              <p className="font-medium">{c.datos.matricula} — {c.datos.numeroOR}</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <p className="font-medium">{c.datos.matricula} — {c.datos.numeroOR}</p>
+                <span
+                  className={`px-3 py-1 rounded text-xs font-semibold ${estadoBadgeClass(c.estadoRecambios)}`}
+                >
+                  {estadoLabel(c.estadoRecambios)}
+                </span>
+              </div>
               <p className="text-sm text-gray-500">
                 Completado: {c.completadoEn.toDate().toLocaleString()}
               </p>
