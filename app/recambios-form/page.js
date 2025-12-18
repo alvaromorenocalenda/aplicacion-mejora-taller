@@ -15,6 +15,8 @@ import {
   updateDoc
 } from "firebase/firestore";
 
+import { deleteChatTrabajo } from "../../lib/chatCleanup";
+
 const CONFIRM_KEY         = "CALENDABORRAR";   // sigue para borrado
 const CONFIRM_REJECT_KEY  = "CALENDADENEGAR";  // para denegar presupuesto
 const CONFIRM_FINALIZAR_KEY = "CALENDAFINALIZAR";
@@ -98,6 +100,10 @@ const handleDelete = async (checklistId, datos) => {
   }
 
   try {
+    // Borrar chat asociado al trabajo (si existe)
+    const trabajoId = String(datos?.cuestionarioId || checklistId);
+    await deleteChatTrabajo(db, trabajoId);
+
     // 1. Borrar directamente el recambio (ya que es lo que se está eliminando)
     console.log("Eliminando recambio:", checklistId); // DEBUG
     await deleteDoc(doc(db, "recambios", checklistId));
@@ -144,6 +150,8 @@ const handleDelete = async (checklistId, datos) => {
      return;
    }
     try {
+      // Si se deniega, también borramos el chat asociado
+      await deleteChatTrabajo(db, checklistId);
       await updateDoc(doc(db, "checklists", checklistId), {
         estadoPresupuesto: "DENEGADO"
       });
@@ -185,6 +193,8 @@ const handleFinalizarPresupuesto = async (checklistId) => {
   }
 
   try {
+    // Si se finaliza, también borramos el chat asociado
+    await deleteChatTrabajo(db, checklistId);
     // Marcar como FINALIZADO en todas las colecciones asociadas
     await updateDoc(doc(db, "checklists", checklistId), {
       estadoPresupuesto: "FINALIZADO",
@@ -269,12 +279,20 @@ const handleFinalizarPresupuesto = async (checklistId) => {
               )}
             </div>
           </div>
-            <button
-              onClick={() => router.push(`/recambios-form/${c.id}`)}
-              className="px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600"
-            >
-              Añadir recambios
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => router.push(`/chat-trabajo/${c.cuestionarioId || c.id}?canal=recambios`)}
+                className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
+              >
+                Chat
+              </button>
+              <button
+                onClick={() => router.push(`/recambios-form/${c.id}`)}
+                className="px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600"
+              >
+                Añadir recambios
+              </button>
+            </div>
           </div>
         ))}
         {pendientes.length === 0 && <p className="text-gray-600">No hay pendientes.</p>}
@@ -311,6 +329,12 @@ const handleFinalizarPresupuesto = async (checklistId) => {
               </p>
             </div>
             <div className="flex space-x-2">
+              <button
+                onClick={() => router.push(`/chat-trabajo/${c.cuestionarioId || c.id}?canal=recambios`)}
+                className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
+              >
+                Chat
+              </button>
               <button
                 onClick={() => router.push(`/recambios-form/${c.id}/detalle`)}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
