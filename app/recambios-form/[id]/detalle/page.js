@@ -11,13 +11,18 @@ export default function RecambiosDetailPage() {
   const { id } = useParams();
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState([]);
+  const [estadoRecambios, setEstadoRecambios] = useState("SIN_INICIAR");
 
   useEffect(() => {
     if (!auth.currentUser) { router.replace("/login"); return; }
     (async () => {
       const snap = await getDoc(doc(db, "recambios", id));
       if (!snap.exists()) router.push("/recambios-form");
-      else setEntries(snap.data().datos || []);
+      else {
+        const data = snap.data();
+        setEntries(data.datos || []);
+        setEstadoRecambios(data.estadoRecambios || "SIN_INICIAR");
+      }
       setLoading(false);
     })();
   }, [id, router]);
@@ -34,7 +39,24 @@ return (
       ← Volver / Lista
     </button>
 
-    <h1 className="text-3xl font-bold mb-6">Recambios para checklist {id}</h1>
+    <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
+      <h1 className="text-3xl font-bold">Recambios para checklist {id}</h1>
+      <span
+        className={`px-3 py-1 rounded text-sm font-semibold ${
+          estadoRecambios === "FINALIZADO"
+            ? "bg-green-400 text-green-900"
+            : estadoRecambios === "EN_PROCESO"
+              ? "bg-yellow-300 text-yellow-900"
+              : "bg-gray-300 text-gray-800"
+        }`}
+      >
+        {estadoRecambios === "FINALIZADO"
+          ? "Finalizado"
+          : estadoRecambios === "EN_PROCESO"
+            ? "En proceso"
+            : "Sin iniciar"}
+      </span>
+    </div>
 
     <div className="overflow-x-auto">
       <table className="min-w-full border-collapse rounded shadow text-sm">
