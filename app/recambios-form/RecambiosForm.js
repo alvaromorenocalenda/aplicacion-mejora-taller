@@ -125,7 +125,8 @@ export default function RecambiosForm({
                     <th></th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Referencia Tramitada</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Fecha Pedido</th>
-                    <th className="p-3 text-center text-sm font-semibold text-[#333]">Proveedor</th>
+                    {/* Proveedor más estrecho (Descripción se mantiene igual) */}
+                    <th className="p-3 text-center text-sm font-semibold text-[#333] w-[180px] min-w-[160px]">Proveedor</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Transporte</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Fecha prevista de llegada</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Fecha Llegada</th>
@@ -152,7 +153,7 @@ export default function RecambiosForm({
                         className="w-full bg-[#F0F0F0] px-2 py-1 rounded text-sm"
                       />
                     </td>
-                    <td className="border px-2 py-1">
+                    <td className="border px-2 py-1 w-[180px] min-w-[160px]">
                       <input
                         type="text"
                         value={e.proveedor}
