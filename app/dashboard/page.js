@@ -314,7 +314,7 @@ const handleFinalizar = async (id) => {
               </div>
               <div className="space-x-5">
                 <button
-                  onClick={() => router.push(`/chat-trabajo/${id}?canal=general`)}
+                  onClick={() => router.push(`/chat-trabajo/${id}`)}
                   className="text-fuchsia-700 hover:underline"
                 >
                   Chat
