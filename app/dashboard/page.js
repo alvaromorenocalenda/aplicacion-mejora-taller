@@ -16,6 +16,8 @@ import {
   updateDoc,     // ← lo añadimos
 } from "firebase/firestore";
 
+import { deleteChatTrabajo } from "../../lib/chatCleanup";
+
 // Clave para confirmar borrado
 const CONFIRM_KEY = "CALENDABORRAR";
 const CONFIRM_DENY_KEY = "CALENDADENEGAR";
@@ -84,6 +86,9 @@ useEffect(() => {
   );
 
   try {
+    // Borrar chat asociado (si existe)
+    await deleteChatTrabajo(db, id);
+
     // 1. Eliminar checklist si aplica
     if (borrarChecklist) {
       try {
@@ -123,6 +128,9 @@ const handleRejectPresupuesto = async (id) => {
     return;
   }
   try {
+    // Si se deniega, también eliminamos el chat asociado
+    await deleteChatTrabajo(db, id);
+
     // 1) Actualiza sólo el cuestionario
     await updateDoc(doc(db, "cuestionarios_cliente", id), {
       estadoPresupuesto: "DENEGADO",
@@ -153,6 +161,9 @@ const handleFinalizar = async (id) => {
     return;
   }
   try {
+    // Si se finaliza, también eliminamos el chat asociado
+    await deleteChatTrabajo(db, id);
+
     // 1. Marcar cuestionario como FINALIZADO
     await updateDoc(doc(db, "cuestionarios_cliente", id), {
       estadoPresupuesto: "FINALIZADO",
@@ -243,6 +254,11 @@ const handleFinalizar = async (id) => {
     Recambios
   </button>
   <button
+    onClick={() => router.push("/chats")}
+    className="flex-1 md:flex-none bg-fuchsia-600 text-white px-4 py-2 rounded hover:bg-fuchsia-700">
+    Chats
+  </button>
+  <button
     onClick={() => router.push("/imagenes")}
     className="flex-1 md:flex-none bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
     Imágenes
@@ -297,6 +313,12 @@ const handleFinalizar = async (id) => {
                 </p>
               </div>
               <div className="space-x-5">
+                <button
+                  onClick={() => router.push(`/chat-trabajo/${id}?canal=general`)}
+                  className="text-fuchsia-700 hover:underline"
+                >
+                  Chat
+                </button>
                 <button
                   onClick={() => router.push(`/cliente-form/${id}?view=true`)}
                   className="text-indigo-600 hover:underline"
