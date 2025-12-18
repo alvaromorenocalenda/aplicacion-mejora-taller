@@ -67,6 +67,7 @@ export default function ChecklistDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [cuestionarioId, setCuestionarioId] = useState(null);
 
   // datos del diagnóstico (checklists)
   const [dataDiag, setDataDiag] = useState({});
@@ -93,6 +94,7 @@ export default function ChecklistDetailPage() {
 
         // 🔥 aquí está la clave: leer también el cuestionario
         const cuestionarioId = checklistDoc.cuestionarioId;
+        setCuestionarioId(cuestionarioId || null);
         if (cuestionarioId) {
           const snapCuest = await getDoc(doc(db, "cuestionarios_cliente", cuestionarioId));
           if (snapCuest.exists()) {
@@ -128,12 +130,22 @@ export default function ChecklistDetailPage() {
       {/* 1) HEADER */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Detalle Checklist</h1>
-        <button
+        <div className="flex items-center gap-3">
+          {cuestionarioId && (
+            <button
+              onClick={() => router.push(`/chat-trabajo/${cuestionarioId}?canal=diagnostico`)}
+              className="px-4 py-2 bg-pink-600 text-white rounded hover:bg-pink-700"
+            >
+              Chat
+            </button>
+          )}
+          <button
           onClick={() => router.push("/diagnostico-form")}
           className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
         >
           Volver
         </button>
+        </div>
       </div>
 
       {/* 2) GRID DE DOS COLUMNAS */}
