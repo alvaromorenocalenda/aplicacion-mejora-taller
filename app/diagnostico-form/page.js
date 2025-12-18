@@ -15,6 +15,8 @@ import {
   doc
 } from "firebase/firestore";
 
+import { deleteChatTrabajo } from "../../lib/chatCleanup";
+
 // clave para confirmar borrado
 const CONFIRM_KEY = "CALENDABORRAR";
 const CONFIRM_REJECT_KEY  = "CALENDADENEGAR";  // para denegar presupuesto
@@ -107,6 +109,8 @@ export default function DiagnosticosPage() {
     }
 
     try {
+      // Borrar chat asociado al trabajo
+      await deleteChatTrabajo(db, cuestionarioId);
       if (confirm("¿Deseas borrar los recambios asociados?")) {
         await deleteDoc(doc(db, "checklists", checklistId));
         setRealizadas((prev) =>
@@ -137,6 +141,8 @@ export default function DiagnosticosPage() {
       return;
     }
     try {
+      // Si se deniega, también borramos el chat asociado
+      await deleteChatTrabajo(db, cuestionarioId);
       await updateDoc(doc(db, "cuestionarios_cliente", cuestionarioId), { estadoPresupuesto: "DENEGADO" });
       await updateDoc(doc(db, "checklists", checklistId), {           estadoPresupuesto: "DENEGADO" });
       try {
@@ -158,6 +164,8 @@ export default function DiagnosticosPage() {
     return;
   }
   try {
+    // Si se finaliza, también borramos el chat asociado
+    await deleteChatTrabajo(db, cuestionarioId);
     await updateDoc(doc(db, "cuestionarios_cliente", cuestionarioId), { estadoPresupuesto: "FINALIZADO" });
     await updateDoc(doc(db, "checklists", checklistId), { estadoPresupuesto: "FINALIZADO" });
     try {
@@ -234,12 +242,20 @@ export default function DiagnosticosPage() {
                     Creado: {c.creadoEn.toDate().toLocaleString()}
                   </p>
                 </div>
-                <button
-                  onClick={() => router.push(`/diagnostico-form/${c.id}`)}
-                  className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                >
-                  Diagnosticar
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => router.push(`/chat-trabajo/${c.id}?canal=diagnostico`)}
+                    className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
+                  >
+                    Chat
+                  </button>
+                  <button
+                    onClick={() => router.push(`/diagnostico-form/${c.id}`)}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                  >
+                    Diagnosticar
+                  </button>
+                </div>
               </div>
             ))
         )}
@@ -282,6 +298,12 @@ export default function DiagnosticosPage() {
                   </p>
                 </div>
                 <div className="space-x-2">
+                <button
+                  onClick={() => router.push(`/chat-trabajo/${c.id}?canal=diagnostico`)}
+                  className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
+                >
+                  Chat
+                </button>
                 <button
                   onClick={() => router.push(`/diagnostico-form/${c.checklistId}/detalle`)}
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
