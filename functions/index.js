@@ -16,6 +16,11 @@ exports.notifyOnChatMessage = functions
     const { trabajoId } = context.params;
     const msg = snap.data() || {};
 
+    // ✅ Marcadores para confirmar que ESTA versión es la que se está ejecutando
+    console.log("🔥 VERSION FUNCION: v3 (23-12) - notifyOnChatMessage");
+    console.log("trabajoId:", trabajoId);
+    console.log("messageId:", context.params.messageId);
+
     // OJO: en tus mensajes no viene uid -> no filtramos por sender
     const text = (msg.text || "").toString();
     const title = "Nuevo mensaje";
@@ -27,34 +32,51 @@ exports.notifyOnChatMessage = functions
     const url = `/chat-trabajo/${trabajoId}`;
 
     // 1️⃣ Obtener usuarios (TODOS)
-    const usersSnap = await admin.firestore().collection("users").get();
-    const targetUids = usersSnap.docs
-      .map((d) => d.id)
-      .filter((uid) => uid);
+    let usersSnap;
+    try {
+      usersSnap = await admin.firestore().collection("users").get();
+    } catch (e) {
+      console.error("❌ Error leyendo /users:", e?.message || e);
+      return null;
+    }
+
+    console.log("usersSnap.size =", usersSnap.size);
+    console.log(
+      "users ids (max 5) =",
+      usersSnap.docs.slice(0, 5).map((d) => d.id)
+    );
+
+    const targetUids = usersSnap.docs.map((d) => d.id).filter((uid) => uid);
 
     if (!targetUids.length) {
-      console.log("No hay usuarios destino");
+      console.log("❌ No hay usuarios destino (colección /users vacía o sin docs)");
       return null;
     }
 
     // 2️⃣ Obtener tokens
     const tokens = [];
     for (const uid of targetUids) {
-      const tokSnap = await admin
-        .firestore()
-        .collection("users")
-        .doc(uid)
-        .collection("fcmTokens")
-        .get();
+      try {
+        const tokSnap = await admin
+          .firestore()
+          .collection("users")
+          .doc(uid)
+          .collection("fcmTokens")
+          .get();
 
-      tokSnap.forEach((t) => {
-        const token = (t.data() || {}).token || t.id;
-        if (token) tokens.push({ uid, token });
-      });
+        tokSnap.forEach((t) => {
+          // Puede estar guardado como campo "token" o como id del doc
+          const token = (t.data() || {}).token || t.id;
+          if (token) tokens.push({ uid, token });
+        });
+      } catch (e) {
+        console.error(`❌ Error leyendo tokens de uid=${uid}:`, e?.message || e);
+      }
     }
 
+    console.log("tokens encontrados =", tokens.length);
     if (!tokens.length) {
-      console.log("No hay tokens para notificar");
+      console.log("❌ No hay tokens para notificar (subcolección fcmTokens vacía)");
       return null;
     }
 
@@ -79,10 +101,16 @@ exports.notifyOnChatMessage = functions
       },
     };
 
-    const resp = await admin.messaging().sendEachForMulticast(multicast);
+    let resp;
+    try {
+      resp = await admin.messaging().sendEachForMulticast(multicast);
+    } catch (e) {
+      console.error("❌ Error enviando FCM:", e?.code, e?.message || e);
+      return null;
+    }
 
     console.log(
-      "Notificación enviada. Éxitos:",
+      "✅ Notificación enviada. Éxitos:",
       resp.successCount,
       "Errores:",
       resp.failureCount
@@ -93,6 +121,8 @@ exports.notifyOnChatMessage = functions
         console.error(
           "FCM error token idx",
           idx,
+          "uid:",
+          tokens[idx]?.uid,
           "code:",
           r.error?.code,
           "msg:",
@@ -114,6 +144,10 @@ exports.notifyOnChatMessage = functions
         }
       }
     });
+
+    if (badTokens.length) {
+      console.log("🧹 Tokens inválidos a borrar:", badTokens.length);
+    }
 
     await Promise.all(
       badTokens.map(({ uid, token }) =>
