@@ -1,56 +1,33 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 
-admin.initializeApp({
-  projectId: "aplicacion-mejora-taller",
-});
-
-const REGION = "europe-west1";
+admin.initializeApp();
 
 exports.notifyOnChatMessage = functions
-  .region(REGION)
+  .region("europe-west1")
   .firestore.document("chats_trabajos/{trabajoId}/messages/{messageId}")
   .onCreate(async (snap, context) => {
-    console.log("🔥 FUNCION ACTIVA");
-
     const { trabajoId } = context.params;
     const msg = snap.data() || {};
 
     const text = (msg.text || "").toString();
     const title = "Nuevo mensaje";
-    const body =
-      text.length > 80 ? text.slice(0, 77) + "..." : text || "Tienes un mensaje nuevo";
-
+    const body = text || "Tienes un mensaje nuevo";
     const url = `/chat-trabajo/${trabajoId}`;
 
-    const usersSnap = await admin.firestore().collection("users").get();
-    console.log("👥 users encontrados:", usersSnap.size);
+    console.log("🔥 FUNCION ACTIVA");
 
-    if (usersSnap.empty) {
-      console.log("❌ usersSnap vacío");
-      return null;
-    }
+    // 🔑 AQUÍ ESTÁ LA CLAVE
+    const tokensSnap = await admin
+      .firestore()
+      .collectionGroup("fcmTokens")
+      .get();
 
-    const tokens = [];
+    console.log("📲 tokens encontrados:", tokensSnap.size);
 
-    for (const doc of usersSnap.docs) {
-      const uid = doc.id;
-      const tokSnap = await admin
-        .firestore()
-        .collection("users")
-        .doc(uid)
-        .collection("fcmTokens")
-        .get();
+    if (tokensSnap.empty) return null;
 
-      tokSnap.forEach((t) => tokens.push(t.id));
-    }
-
-    console.log("📲 tokens:", tokens.length);
-
-    if (!tokens.length) {
-      console.log("❌ No hay tokens");
-      return null;
-    }
+    const tokens = tokensSnap.docs.map(d => d.id);
 
     const resp = await admin.messaging().sendEachForMulticast({
       tokens,
@@ -58,16 +35,8 @@ exports.notifyOnChatMessage = functions
         notification: { title, body },
         fcmOptions: { link: url },
       },
-      data: { url },
     });
 
-    console.log("✅ Enviado. success:", resp.successCount, "fail:", resp.failureCount);
-
-    resp.responses.forEach((r, idx) => {
-      if (!r.success) {
-        console.error("FCM error idx", idx, r.error?.code, r.error?.message);
-      }
-    });
-
+    console.log("✅ enviados:", resp.successCount);
     return null;
   });
