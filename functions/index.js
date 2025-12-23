@@ -16,7 +16,7 @@ exports.notifyOnChatMessage = functions
     const { trabajoId } = context.params;
     const msg = snap.data() || {};
 
-    const senderUid = msg.uid;
+    // OJO: en tus mensajes no viene uid -> no filtramos por sender
     const text = (msg.text || "").toString();
     const title = "Nuevo mensaje";
     const body =
@@ -26,11 +26,11 @@ exports.notifyOnChatMessage = functions
 
     const url = `/chat-trabajo/${trabajoId}`;
 
-    // 1️⃣ Obtener usuarios
+    // 1️⃣ Obtener usuarios (TODOS)
     const usersSnap = await admin.firestore().collection("users").get();
     const targetUids = usersSnap.docs
       .map((d) => d.id)
-      .filter((uid) => uid && uid !== senderUid);
+      .filter((uid) => uid);
 
     if (!targetUids.length) {
       console.log("No hay usuarios destino");
@@ -58,7 +58,7 @@ exports.notifyOnChatMessage = functions
       return null;
     }
 
-    // 3️⃣ NOTIFICACIÓN WEB CORRECTA
+    // 3️⃣ NOTIFICACIÓN WEB (lo correcto en navegador)
     const multicast = {
       tokens: tokens.map((t) => t.token),
 
@@ -87,6 +87,19 @@ exports.notifyOnChatMessage = functions
       "Errores:",
       resp.failureCount
     );
+
+    resp.responses.forEach((r, idx) => {
+      if (!r.success) {
+        console.error(
+          "FCM error token idx",
+          idx,
+          "code:",
+          r.error?.code,
+          "msg:",
+          r.error?.message
+        );
+      }
+    });
 
     // 4️⃣ Limpiar tokens inválidos
     const badTokens = [];
