@@ -5,10 +5,6 @@ admin.initializeApp();
 
 const REGION = "europe-west1";
 
-/**
- * Trigger: cuando se crea un mensaje en un chat de trabajo
- * Path: chats_trabajos/{trabajoId}/messages/{messageId}
- */
 exports.notifyOnChatMessage = functions
   .region(REGION)
   .firestore.document("chats_trabajos/{trabajoId}/messages/{messageId}")
@@ -16,19 +12,16 @@ exports.notifyOnChatMessage = functions
     const { trabajoId } = context.params;
     const msg = snap.data() || {};
 
-    const senderUid = msg.uid || null; // ✅ ahora sí lo tienes
+    const senderUid = msg.uid || null;
     const text = (msg.text || "").toString();
 
     const title = "Nuevo mensaje";
     const body =
-      text.length > 80
-        ? text.slice(0, 77) + "..."
-        : text || "Tienes un mensaje nuevo";
+      text.length > 80 ? text.slice(0, 77) + "..." : text || "Tienes un mensaje nuevo";
 
-    // OJO: tu app usa esta ruta
     const url = `/chat-trabajo/${trabajoId}`;
 
-    // 1) Obtener usuarios y EXCLUIR al que envía
+    // 1) Usuarios destino (excluye al remitente)
     const usersSnap = await admin.firestore().collection("users").get();
 
     const targetUids = usersSnap.docs
@@ -36,12 +29,13 @@ exports.notifyOnChatMessage = functions
       .filter((uid) => uid && (!senderUid || uid !== senderUid));
 
     if (!targetUids.length) {
-      console.log("No hay usuarios destino (solo está el remitente o no hay users)");
+      console.log("No hay usuarios destino");
       return null;
     }
 
-    // 2) Obtener tokens de destinatarios
+    // 2) Tokens de destinatarios
     const tokenSet = new Set();
+
     for (const uid of targetUids) {
       const tokSnap = await admin
         .firestore()
@@ -51,8 +45,7 @@ exports.notifyOnChatMessage = functions
         .get();
 
       tokSnap.forEach((t) => {
-        // tu estructura: docId = token, y dentro guardas createdAt/userAgent
-        const token = (t.data() || {}).token || t.id;
+        const token = (t.data() || {}).token || t.id; // tu docId ya es el token
         if (token) tokenSet.add(token);
       });
     }
@@ -64,34 +57,32 @@ exports.notifyOnChatMessage = functions
       return null;
     }
 
-    // 3) Enviar DATA-ONLY (para NO duplicar notificaciones)
+    // ✅ 3) Envío WEBPUSH con NOTIFICATION (Chrome la muestra siempre)
     const multicast = {
       tokens,
+      webpush: {
+        notification: {
+          title,
+          body,
+          icon: "/icon-192.png", // si no existe, quítalo
+        },
+        fcmOptions: {
+          link: url, // al clicar abre esa ruta
+        },
+      },
+      // opcional: data (por si quieres usarlo luego)
       data: {
-        title,
-        body,
         url,
         trabajoId,
-      },
-      // opcional: webpush headers
-      webpush: {
-        headers: {
-          Urgency: "high",
-        },
       },
     };
 
     const resp = await admin.messaging().sendEachForMulticast(multicast);
 
-    console.log(
-      "Notificación enviada. Éxitos:",
-      resp.successCount,
-      "Errores:",
-      resp.failureCount
-    );
+    console.log("OK:", resp.successCount, "FAIL:", resp.failureCount);
 
     // 4) Limpiar tokens inválidos
-    const badTokenIds = [];
+    const badTokens = [];
     resp.responses.forEach((r, idx) => {
       if (!r.success) {
         const code = r.error?.code;
@@ -101,16 +92,15 @@ exports.notifyOnChatMessage = functions
           code === "messaging/registration-token-not-registered" ||
           code === "messaging/invalid-registration-token"
         ) {
-          badTokenIds.push(tokens[idx]);
+          badTokens.push(tokens[idx]);
         }
       }
     });
 
-    if (badTokenIds.length) {
-      // borrar ese token de cualquier user que lo tenga (más robusto)
+    if (badTokens.length) {
       const deletes = [];
       for (const uid of targetUids) {
-        for (const bad of badTokenIds) {
+        for (const bad of badTokens) {
           deletes.push(
             admin
               .firestore()
