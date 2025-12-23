@@ -19,47 +19,84 @@ exports.notifyOnChatMessage = functions
     const senderUid = msg.uid;
     const text = (msg.text || "").toString();
     const title = "Nuevo mensaje";
-    const body = text.length > 80 ? text.slice(0, 77) + "..." : text || "Tienes un mensaje nuevo";
+    const body =
+      text.length > 80
+        ? text.slice(0, 77) + "..."
+        : text || "Tienes un mensaje nuevo";
+
     const url = `/chat-trabajo/${trabajoId}`;
 
-    // Buscar usuarios en /users
+    // 1️⃣ Obtener usuarios
     const usersSnap = await admin.firestore().collection("users").get();
     const targetUids = usersSnap.docs
       .map((d) => d.id)
       .filter((uid) => uid && uid !== senderUid);
 
-    if (!targetUids.length) return null;
+    if (!targetUids.length) {
+      console.log("No hay usuarios destino");
+      return null;
+    }
 
-    // Recoger tokens de todos los destinatarios
+    // 2️⃣ Obtener tokens
     const tokens = [];
     for (const uid of targetUids) {
-      const tokSnap = await admin.firestore().collection("users").doc(uid).collection("fcmTokens").get();
+      const tokSnap = await admin
+        .firestore()
+        .collection("users")
+        .doc(uid)
+        .collection("fcmTokens")
+        .get();
+
       tokSnap.forEach((t) => {
         const token = (t.data() || {}).token || t.id;
         if (token) tokens.push({ uid, token });
       });
     }
 
-    if (!tokens.length) return null;
+    if (!tokens.length) {
+      console.log("No hay tokens para notificar");
+      return null;
+    }
 
-    // Enviar notificación
+    // 3️⃣ NOTIFICACIÓN WEB CORRECTA
     const multicast = {
-      notification: { title, body },
-      data: { url, trabajoId },
       tokens: tokens.map((t) => t.token),
+
+      data: {
+        url,
+        trabajoId,
+      },
+
       webpush: {
-        fcmOptions: { link: url },
+        notification: {
+          title,
+          body,
+          icon: "/icon-192.png", // si no existe, puedes borrar esta línea
+        },
+        fcmOptions: {
+          link: url,
+        },
       },
     };
 
     const resp = await admin.messaging().sendEachForMulticast(multicast);
 
-    // Limpiar tokens inválidos
+    console.log(
+      "Notificación enviada. Éxitos:",
+      resp.successCount,
+      "Errores:",
+      resp.failureCount
+    );
+
+    // 4️⃣ Limpiar tokens inválidos
     const badTokens = [];
     resp.responses.forEach((r, idx) => {
       if (!r.success) {
         const err = r.error && r.error.code;
-        if (err === "messaging/registration-token-not-registered" || err === "messaging/invalid-registration-token") {
+        if (
+          err === "messaging/registration-token-not-registered" ||
+          err === "messaging/invalid-registration-token"
+        ) {
           badTokens.push(tokens[idx]);
         }
       }
@@ -67,7 +104,14 @@ exports.notifyOnChatMessage = functions
 
     await Promise.all(
       badTokens.map(({ uid, token }) =>
-        admin.firestore().collection("users").doc(uid).collection("fcmTokens").doc(token).delete().catch(() => null)
+        admin
+          .firestore()
+          .collection("users")
+          .doc(uid)
+          .collection("fcmTokens")
+          .doc(token)
+          .delete()
+          .catch(() => null)
       )
     );
 
