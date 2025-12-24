@@ -5,7 +5,6 @@ admin.initializeApp();
 
 const REGION = "europe-west1";
 
-// Path correcto según tu BD: chats_trabajos/{trabajoId}/messages/{messageId}
 exports.notifyOnChatMessage = functions
   .region(REGION)
   .firestore.document("chats_trabajos/{trabajoId}/messages/{messageId}")
@@ -13,11 +12,11 @@ exports.notifyOnChatMessage = functions
     const { trabajoId } = context.params;
     const msg = snap.data() || {};
 
-    // ✅ IMPORTANTE: tu mensaje SI tiene uid (lo has enseñado en captura)
+    // ✅ En tus mensajes existe uid (según tu captura)
     const senderUid = msg.uid || null;
 
-    const text = (msg.text || "").toString();
-    const displayName = (msg.displayName || "").toString();
+    const text = (msg.text || "").toString().trim();
+    const displayName = (msg.displayName || "").toString().trim();
 
     const title = displayName ? `Mensaje de ${displayName}` : "Nuevo mensaje";
     const body =
@@ -33,11 +32,11 @@ exports.notifyOnChatMessage = functions
       .filter((uid) => uid && (!senderUid || uid !== senderUid));
 
     if (!targetUids.length) {
-      console.log("No hay usuarios destino (solo existe el remitente)");
+      console.log("No hay usuarios destino");
       return null;
     }
 
-    // 2) Tokens (sin duplicados)
+    // 2) Tokens destino (Set para NO duplicar)
     const tokensSet = new Set();
 
     for (const uid of targetUids) {
@@ -50,8 +49,7 @@ exports.notifyOnChatMessage = functions
 
       tokSnap.forEach((t) => {
         const data = t.data() || {};
-        // en tu colección el docId ES el token, y además guardas meta sin "token"
-        const token = data.token || t.id;
+        const token = data.token || t.id; // en tu caso el docId suele ser el token
         if (token) tokensSet.add(token);
       });
     }
@@ -63,38 +61,33 @@ exports.notifyOnChatMessage = functions
       return null;
     }
 
-    // 3) ✅ WEBPUSH NOTIFICATION (esto lo muestra Chrome SIEMPRE en background)
+    // ✅ 3) DATA-ONLY (IMPORTANTÍSIMO para evitar duplicados)
     const multicast = {
       tokens,
-      webpush: {
-        notification: {
-          title,
-          body,
-          // si no tienes icono, comenta la siguiente línea
-          // icon: "/icon-192.png",
-        },
-        fcmOptions: {
-          link: url,
-        },
-      },
-      // data opcional
       data: {
+        title,
+        body,
         url,
-        trabajoId,
+        trabajoId: String(trabajoId),
       },
     };
 
     const resp = await admin.messaging().sendEachForMulticast(multicast);
 
-    console.log("Notificación -> OK:", resp.successCount, "FAIL:", resp.failureCount);
+    console.log("Enviado OK:", resp.successCount, "FAIL:", resp.failureCount);
+
+    // Log detallado si falla algo
+    resp.responses.forEach((r, idx) => {
+      if (!r.success) {
+        console.error("FCM error token idx", idx, r.error?.code, r.error?.message);
+      }
+    });
 
     // 4) limpiar tokens inválidos
     const invalid = [];
     resp.responses.forEach((r, idx) => {
       if (!r.success) {
         const code = r.error?.code;
-        console.error("FCM error:", code, r.error?.message);
-
         if (
           code === "messaging/registration-token-not-registered" ||
           code === "messaging/invalid-registration-token"
@@ -105,11 +98,10 @@ exports.notifyOnChatMessage = functions
     });
 
     if (invalid.length) {
-      // borrar invalidos de TODOS los users (seguro)
-      const users2 = await admin.firestore().collection("users").get();
+      const allUsers = await admin.firestore().collection("users").get();
       const deletes = [];
 
-      for (const u of users2.docs) {
+      for (const u of allUsers.docs) {
         for (const bad of invalid) {
           deletes.push(
             admin
@@ -123,6 +115,7 @@ exports.notifyOnChatMessage = functions
           );
         }
       }
+
       await Promise.all(deletes);
     }
 
