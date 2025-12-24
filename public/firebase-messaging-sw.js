@@ -1,19 +1,24 @@
 // /public/firebase-messaging-sw.js
-// Service Worker mínimo: solo maneja el click de notificación.
-// La notificación la renderiza Chrome/FCM por webpush.notification.
+// SW mínimo: NO muestra notificaciones (las muestra FCM por webpush.notification)
+// Solo gestiona el click.
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  // Si viene URL en data, la usamos; si no, por defecto
-  const url = event.notification?.data?.url || "/chats";
+  // En webpush.notification no siempre viene event.notification.data,
+  // así que abrimos el chat "general" si no hay url.
+  const fallbackUrl = "/chats";
+  const url = event.notification?.data?.url || fallbackUrl;
 
   event.waitUntil(
     (async () => {
-      const allClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
+      const allClients = await clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
 
+      // Si ya existe una pestaña de tu web, enfócala
       for (const client of allClients) {
-        // si ya hay una pestaña abierta, enfocarla y navegar
         if (client.url.includes(self.location.origin)) {
           await client.focus();
           try {
@@ -23,7 +28,7 @@ self.addEventListener("notificationclick", (event) => {
         }
       }
 
-      // si no hay pestañas, abrir nueva
+      // si no, abrir nueva
       await clients.openWindow(url);
     })()
   );
