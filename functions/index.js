@@ -5,6 +5,10 @@ admin.initializeApp();
 
 const REGION = "europe-west1";
 
+/**
+ * Trigger: cuando se crea un mensaje en un chat de trabajo
+ * Path: chats_trabajos/{trabajoId}/messages/{messageId}
+ */
 exports.notifyOnChatMessage = functions
   .region(REGION)
   .firestore.document("chats_trabajos/{trabajoId}/messages/{messageId}")
@@ -12,111 +16,126 @@ exports.notifyOnChatMessage = functions
     const { trabajoId } = context.params;
     const msg = snap.data() || {};
 
-    // ✅ En tus mensajes existe uid (según tu captura)
+    // IMPORTANTE: en tus mensajes SÍ tienes uid (lo vi en tu captura)
     const senderUid = msg.uid || null;
 
-    const text = (msg.text || "").toString().trim();
-    const displayName = (msg.displayName || "").toString().trim();
-
-    const title = displayName ? `Mensaje de ${displayName}` : "Nuevo mensaje";
+    const text = (msg.text || "").toString();
+    const title = "Nuevo mensaje";
     const body =
       text.length > 80 ? text.slice(0, 77) + "..." : text || "Tienes un mensaje nuevo";
 
     const url = `/chat-trabajo/${trabajoId}`;
 
-    // 1) Usuarios destino: todos menos el remitente
-    const usersSnap = await admin.firestore().collection("users").get();
+    console.log("📩 Nuevo mensaje en trabajoId:", trabajoId, "senderUid:", senderUid);
 
-    const targetUids = usersSnap.docs
-      .map((d) => d.id)
-      .filter((uid) => uid && (!senderUid || uid !== senderUid));
+    // ✅ 1) Leer TODOS los tokens aunque /users/{uid} NO exista
+    const tokensSnap = await admin.firestore().collectionGroup("fcmTokens").get();
 
-    if (!targetUids.length) {
-      console.log("No hay usuarios destino");
+    console.log("🔎 Tokens encontrados (collectionGroup):", tokensSnap.size);
+
+    if (tokensSnap.empty) {
+      console.log("❌ No hay tokens para notificar");
       return null;
     }
 
-    // 2) Tokens destino (Set para NO duplicar)
-    const tokensSet = new Set();
+    // ✅ 2) Construir lista de tokens (y excluir al remitente)
+    const tokens = [];
+    tokensSnap.forEach((doc) => {
+      // doc.ref.path: users/{uid}/fcmTokens/{tokenDocId}
+      const pathParts = doc.ref.path.split("/");
+      const uid = pathParts[1]; // users/{uid}/...
 
-    for (const uid of targetUids) {
-      const tokSnap = await admin
-        .firestore()
-        .collection("users")
-        .doc(uid)
-        .collection("fcmTokens")
-        .get();
+      // token: o viene en campo "token" o el id del doc
+      const data = doc.data() || {};
+      const token = data.token || doc.id;
 
-      tokSnap.forEach((t) => {
-        const data = t.data() || {};
-        const token = data.token || t.id; // en tu caso el docId suele ser el token
-        if (token) tokensSet.add(token);
-      });
-    }
+      if (!token) return;
 
-    const tokens = Array.from(tokensSet);
+      // Excluir remitente (si hay uid en el mensaje)
+      if (senderUid && uid === senderUid) return;
+
+      tokens.push({ uid, token });
+    });
+
+    console.log("🎯 Tokens destino tras filtrar remitente:", tokens.length);
 
     if (!tokens.length) {
-      console.log("No hay tokens para notificar");
+      console.log("❌ No hay usuarios destino (solo existe el remitente o no hay más tokens)");
       return null;
     }
 
-    // ✅ 3) DATA-ONLY (IMPORTANTÍSIMO para evitar duplicados)
+    // ✅ 3) Enviar notificación WEB correcta (para Chrome/PC)
     const multicast = {
-      tokens,
+      tokens: tokens.map((t) => t.token),
       data: {
-        title,
-        body,
         url,
-        trabajoId: String(trabajoId),
+        trabajoId,
+      },
+      webpush: {
+        notification: {
+          title,
+          body,
+          // icon opcional, si no existe en /public, bórralo
+          icon: "/icon-192.png",
+        },
+        fcmOptions: {
+          link: url,
+        },
       },
     };
 
     const resp = await admin.messaging().sendEachForMulticast(multicast);
 
-    console.log("Enviado OK:", resp.successCount, "FAIL:", resp.failureCount);
+    console.log(
+      "✅ Enviado. OK:",
+      resp.successCount,
+      "FAIL:",
+      resp.failureCount
+    );
 
-    // Log detallado si falla algo
+    // Log de errores por token
     resp.responses.forEach((r, idx) => {
       if (!r.success) {
-        console.error("FCM error token idx", idx, r.error?.code, r.error?.message);
+        console.error(
+          "❌ FCM error idx",
+          idx,
+          "uid:",
+          tokens[idx]?.uid,
+          "code:",
+          r.error?.code,
+          "msg:",
+          r.error?.message
+        );
       }
     });
 
-    // 4) limpiar tokens inválidos
-    const invalid = [];
+    // ✅ 4) Limpiar tokens inválidos
+    const bad = [];
     resp.responses.forEach((r, idx) => {
       if (!r.success) {
-        const code = r.error?.code;
+        const code = r.error?.code || "";
         if (
           code === "messaging/registration-token-not-registered" ||
           code === "messaging/invalid-registration-token"
         ) {
-          invalid.push(tokens[idx]);
+          bad.push(tokens[idx]);
         }
       }
     });
 
-    if (invalid.length) {
-      const allUsers = await admin.firestore().collection("users").get();
-      const deletes = [];
+    if (bad.length) {
+      console.log("🧹 Limpiando tokens inválidos:", bad.length);
+      await Promise.all(
+        bad.map(async ({ token }) => {
+          // Buscar el doc exacto por id en collectionGroup no se puede borrar directo,
+          // pero como el docId es el token, borramos por query:
+          const qs = await admin.firestore().collectionGroup("fcmTokens")
+            .where(admin.firestore.FieldPath.documentId(), "==", token)
+            .get();
 
-      for (const u of allUsers.docs) {
-        for (const bad of invalid) {
-          deletes.push(
-            admin
-              .firestore()
-              .collection("users")
-              .doc(u.id)
-              .collection("fcmTokens")
-              .doc(bad)
-              .delete()
-              .catch(() => null)
-          );
-        }
-      }
-
-      await Promise.all(deletes);
+          await Promise.all(qs.docs.map((d) => d.ref.delete().catch(() => null)));
+        })
+      );
     }
 
     return null;
