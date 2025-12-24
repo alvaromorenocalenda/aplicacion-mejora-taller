@@ -5,6 +5,7 @@ admin.initializeApp();
 
 const REGION = "europe-west1";
 
+// Path correcto según tu BD: chats_trabajos/{trabajoId}/messages/{messageId}
 exports.notifyOnChatMessage = functions
   .region(REGION)
   .firestore.document("chats_trabajos/{trabajoId}/messages/{messageId}")
@@ -12,16 +13,19 @@ exports.notifyOnChatMessage = functions
     const { trabajoId } = context.params;
     const msg = snap.data() || {};
 
+    // ✅ IMPORTANTE: tu mensaje SI tiene uid (lo has enseñado en captura)
     const senderUid = msg.uid || null;
-    const text = (msg.text || "").toString();
 
-    const title = "Nuevo mensaje";
+    const text = (msg.text || "").toString();
+    const displayName = (msg.displayName || "").toString();
+
+    const title = displayName ? `Mensaje de ${displayName}` : "Nuevo mensaje";
     const body =
       text.length > 80 ? text.slice(0, 77) + "..." : text || "Tienes un mensaje nuevo";
 
     const url = `/chat-trabajo/${trabajoId}`;
 
-    // 1) Usuarios destino (excluye al remitente)
+    // 1) Usuarios destino: todos menos el remitente
     const usersSnap = await admin.firestore().collection("users").get();
 
     const targetUids = usersSnap.docs
@@ -29,12 +33,12 @@ exports.notifyOnChatMessage = functions
       .filter((uid) => uid && (!senderUid || uid !== senderUid));
 
     if (!targetUids.length) {
-      console.log("No hay usuarios destino");
+      console.log("No hay usuarios destino (solo existe el remitente)");
       return null;
     }
 
-    // 2) Tokens de destinatarios
-    const tokenSet = new Set();
+    // 2) Tokens (sin duplicados)
+    const tokensSet = new Set();
 
     for (const uid of targetUids) {
       const tokSnap = await admin
@@ -45,32 +49,35 @@ exports.notifyOnChatMessage = functions
         .get();
 
       tokSnap.forEach((t) => {
-        const token = (t.data() || {}).token || t.id; // tu docId ya es el token
-        if (token) tokenSet.add(token);
+        const data = t.data() || {};
+        // en tu colección el docId ES el token, y además guardas meta sin "token"
+        const token = data.token || t.id;
+        if (token) tokensSet.add(token);
       });
     }
 
-    const tokens = Array.from(tokenSet);
+    const tokens = Array.from(tokensSet);
 
     if (!tokens.length) {
       console.log("No hay tokens para notificar");
       return null;
     }
 
-    // ✅ 3) Envío WEBPUSH con NOTIFICATION (Chrome la muestra siempre)
+    // 3) ✅ WEBPUSH NOTIFICATION (esto lo muestra Chrome SIEMPRE en background)
     const multicast = {
       tokens,
       webpush: {
         notification: {
           title,
           body,
-          icon: "/icon-192.png", // si no existe, quítalo
+          // si no tienes icono, comenta la siguiente línea
+          // icon: "/icon-192.png",
         },
         fcmOptions: {
-          link: url, // al clicar abre esa ruta
+          link: url,
         },
       },
-      // opcional: data (por si quieres usarlo luego)
+      // data opcional
       data: {
         url,
         trabajoId,
@@ -79,33 +86,36 @@ exports.notifyOnChatMessage = functions
 
     const resp = await admin.messaging().sendEachForMulticast(multicast);
 
-    console.log("OK:", resp.successCount, "FAIL:", resp.failureCount);
+    console.log("Notificación -> OK:", resp.successCount, "FAIL:", resp.failureCount);
 
-    // 4) Limpiar tokens inválidos
-    const badTokens = [];
+    // 4) limpiar tokens inválidos
+    const invalid = [];
     resp.responses.forEach((r, idx) => {
       if (!r.success) {
         const code = r.error?.code;
-        console.error("FCM error", idx, code, r.error?.message);
+        console.error("FCM error:", code, r.error?.message);
 
         if (
           code === "messaging/registration-token-not-registered" ||
           code === "messaging/invalid-registration-token"
         ) {
-          badTokens.push(tokens[idx]);
+          invalid.push(tokens[idx]);
         }
       }
     });
 
-    if (badTokens.length) {
+    if (invalid.length) {
+      // borrar invalidos de TODOS los users (seguro)
+      const users2 = await admin.firestore().collection("users").get();
       const deletes = [];
-      for (const uid of targetUids) {
-        for (const bad of badTokens) {
+
+      for (const u of users2.docs) {
+        for (const bad of invalid) {
           deletes.push(
             admin
               .firestore()
               .collection("users")
-              .doc(uid)
+              .doc(u.id)
               .collection("fcmTokens")
               .doc(bad)
               .delete()
