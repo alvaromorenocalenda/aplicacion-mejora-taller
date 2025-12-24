@@ -5,56 +5,87 @@ admin.initializeApp();
 
 const REGION = "europe-west1";
 
+/**
+ * Trigger:
+ * chats_trabajos/{trabajoId}/messages/{messageId}
+ */
 exports.notifyOnChatMessage = functions
   .region(REGION)
   .firestore.document("chats_trabajos/{trabajoId}/messages/{messageId}")
   .onCreate(async (snap, context) => {
-    const { trabajoId } = context.params;
+    const { trabajoId, messageId } = context.params;
     const msg = snap.data() || {};
 
-    const senderUid = msg.uid || null;
+    // ✅ Detectar UID del remitente de forma robusta
+    const senderUid =
+      (typeof msg.uid === "string" && msg.uid) ||
+      (typeof msg.senderUid === "string" && msg.senderUid) ||
+      (typeof msg.userId === "string" && msg.userId) ||
+      null;
+
     const text = (msg.text || "").toString();
-
     const title = "Nuevo mensaje";
-    const body =
-      text.length > 80 ? text.slice(0, 77) + "..." : text || "Tienes un mensaje nuevo";
-
+    const body = text.length > 80 ? text.slice(0, 77) + "..." : (text || "Tienes un mensaje nuevo");
     const url = `/chat-trabajo/${trabajoId}`;
 
-    console.log("📩 Nuevo mensaje:", trabajoId, "senderUid:", senderUid);
+    console.log("📩 notifyOnChatMessage fired");
+    console.log("trabajoId:", trabajoId, "messageId:", messageId);
+    console.log("senderUid detectado:", senderUid);
+    console.log("displayName:", msg.displayName || null);
 
-    // 1️⃣ Obtener TODOS los tokens (aunque /users/{uid} no exista)
+    // 🚫 Si no sabemos quién lo envía, no enviamos (evita autospam)
+    if (!senderUid) {
+      console.log("❌ senderUid no encontrado en el mensaje. No envío notificación.");
+      console.log("Campos del mensaje:", Object.keys(msg));
+      return null;
+    }
+
+    // 1) Obtener TODOS los tokens guardados en /users/*/fcmTokens/*
     const tokensSnap = await admin.firestore().collectionGroup("fcmTokens").get();
 
     if (tokensSnap.empty) {
-      console.log("❌ No hay tokens");
+      console.log("❌ No hay tokens en Firestore (collectionGroup fcmTokens vacío).");
       return null;
     }
 
-    const tokens = [];
-
+    // 2) Construir lista (uidDestino -> tokens) y EXCLUIR al remitente
+    const tokensByUid = new Map(); // uid -> [token, token, ...]
     tokensSnap.forEach((doc) => {
+      // doc.ref.path ejemplo: users/{uid}/fcmTokens/{tokenDocId}
       const parts = doc.ref.path.split("/");
-      const uid = parts[1]; // users/{uid}/fcmTokens/{token}
+      const uidFromPath = parts[0] === "users" ? parts[1] : null;
 
-      // token puede ser campo o id del doc
-      const token = doc.data()?.token || doc.id;
+      if (!uidFromPath) return;
+
+      // token puede estar en campo "token" o ser el id del doc
+      const token = (doc.data() && doc.data().token) ? doc.data().token : doc.id;
       if (!token) return;
 
-      // ❌ excluir al que envía el mensaje
-      if (senderUid && uid === senderUid) return;
+      // excluir al remitente
+      if (uidFromPath === senderUid) return;
 
-      tokens.push(token);
+      if (!tokensByUid.has(uidFromPath)) tokensByUid.set(uidFromPath, []);
+      tokensByUid.get(uidFromPath).push(token);
     });
 
-    if (!tokens.length) {
-      console.log("❌ No hay usuarios destino (solo remitente)");
+    const targetUids = Array.from(tokensByUid.keys());
+    console.log("👥 UIDs destino:", targetUids);
+
+    if (targetUids.length === 0) {
+      console.log("❌ No hay usuarios destino (solo hay tokens del remitente o no existen otros).");
       return null;
     }
 
-    console.log("🎯 Tokens destino:", tokens.length);
+    // 3) Aplanar tokens
+    const tokens = targetUids.flatMap((uid) => tokensByUid.get(uid));
+    console.log("🎯 Tokens destino totales:", tokens.length);
 
-    // 2️⃣ DATA-ONLY (el SW muestra la notificación)
+    if (!tokens.length) {
+      console.log("❌ No hay tokens destino tras filtrar.");
+      return null;
+    }
+
+    // 4) Envío DATA-ONLY (el SW muestra la notificación) => NO DUPLICADOS
     const payload = {
       tokens,
       data: {
@@ -67,16 +98,12 @@ exports.notifyOnChatMessage = functions
 
     const resp = await admin.messaging().sendEachForMulticast(payload);
 
-    console.log(
-      "✅ Enviado:",
-      resp.successCount,
-      "❌ Fallos:",
-      resp.failureCount
-    );
+    console.log("✅ Envío terminado. success:", resp.successCount, "fail:", resp.failureCount);
 
-    resp.responses.forEach((r, i) => {
+    // Log de errores por token (IMPORTANTE)
+    resp.responses.forEach((r, idx) => {
       if (!r.success) {
-        console.error("❌ Token error:", r.error?.code, r.error?.message);
+        console.error("❌ FCM error idx", idx, "code:", r.error?.code, "msg:", r.error?.message);
       }
     });
 
