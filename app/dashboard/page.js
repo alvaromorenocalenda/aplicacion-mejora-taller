@@ -1,3 +1,4 @@
+// app/dashboard/page.js
 "use client";
 
 import { useEffect, useState } from "react";
@@ -13,6 +14,7 @@ import {
   deleteDoc,
   doc,
   updateDoc,
+  setDoc,
 } from "firebase/firestore";
 
 import { registerPushForUser } from "../../lib/pushNotifications";
@@ -95,7 +97,7 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  // 2) Suscribirse a los cuestionarios y comprobar si tienen mensajes no leídos
+  // 2) Suscribirse sólo a los cuestionarios con presupuesto PENDIENTE
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -104,16 +106,13 @@ export default function DashboardPage() {
       orderBy("creadoEn", "desc")
     );
     return onSnapshot(q, (snap) => {
-      const fetchedItems = snap.docs.map((d) => ({
-        id: d.id,
-        datos: d.data().datos,
-        creadoEn: d.data().creadoEn,
-        tieneMensajesNoLeidos: d.data().tieneMensajesNoLeidos || false, // Asegúrate de que tiene un valor booleano
-      }));
-
-      console.log(fetchedItems); // Verifica si los valores son correctos
-
-      setItems(fetchedItems);
+      setItems(
+        snap.docs.map((d) => ({
+          id: d.id,
+          datos: d.data().datos,
+          creadoEn: d.data().creadoEn,
+        }))
+      );
     });
   }, [user]);
 
@@ -372,12 +371,10 @@ export default function DashboardPage() {
         {filteredItems.length === 0 ? (
           <p className="text-gray-600">No hay cuestionarios que coincidan.</p>
         ) : (
-          filteredItems.map(({ id, datos, creadoEn, tieneMensajesNoLeidos }) => (
+          filteredItems.map(({ id, datos, creadoEn }) => (
             <div
               key={id}
-              className={`flex justify-between items-center p-4 rounded shadow ${
-                tieneMensajesNoLeidos ? 'bg-yellow-100' : 'bg-white'
-              }`} // Cambia el color de fondo si tiene mensajes no leídos
+              className="flex justify-between items-center bg-white p-4 rounded shadow"
             >
               <div>
                 <p className="font-medium">
