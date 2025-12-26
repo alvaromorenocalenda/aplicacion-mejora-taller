@@ -1,4 +1,3 @@
-// app/dashboard/page.js
 "use client";
 
 import { useEffect, useState } from "react";
@@ -97,7 +96,7 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  // 2) Suscribirse sólo a los cuestionarios con presupuesto PENDIENTE
+  // 2) Suscribirse a los cuestionarios y comprobar si tienen mensajes no leídos
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -111,6 +110,7 @@ export default function DashboardPage() {
           id: d.id,
           datos: d.data().datos,
           creadoEn: d.data().creadoEn,
+          tieneMensajesNoLeidos: d.data().tieneMensajesNoLeidos, // Añadido para verificar mensajes no leídos
         }))
       );
     });
@@ -371,10 +371,12 @@ export default function DashboardPage() {
         {filteredItems.length === 0 ? (
           <p className="text-gray-600">No hay cuestionarios que coincidan.</p>
         ) : (
-          filteredItems.map(({ id, datos, creadoEn }) => (
+          filteredItems.map(({ id, datos, creadoEn, tieneMensajesNoLeidos }) => (
             <div
               key={id}
-              className="flex justify-between items-center bg-white p-4 rounded shadow"
+              className={`flex justify-between items-center p-4 rounded shadow ${
+                tieneMensajesNoLeidos ? 'bg-yellow-100' : 'bg-white'
+              }`} // Cambia el color de fondo si tiene mensajes no leídos
             >
               <div>
                 <p className="font-medium">
