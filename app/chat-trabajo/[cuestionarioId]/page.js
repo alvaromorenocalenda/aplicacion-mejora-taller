@@ -14,7 +14,6 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  updateDoc,
 } from "firebase/firestore";
 
 export default function ChatTrabajoPage() {
@@ -25,6 +24,7 @@ export default function ChatTrabajoPage() {
   const [texto, setTexto] = useState("");
 
   const bottomRef = useRef(null);
+  const lastMarkReadRef = useRef(0);
 
   const chatDocRef = useMemo(
     () => doc(db, "chats_trabajos", String(cuestionarioId)),
@@ -36,6 +36,25 @@ export default function ChatTrabajoPage() {
     () => collection(db, "chats_trabajos", String(cuestionarioId), "messages"),
     [cuestionarioId]
   );
+
+  async function markAsRead() {
+    const u = auth.currentUser;
+    if (!u) return;
+
+    const now = Date.now();
+    if (now - lastMarkReadRef.current < 4000) return; // anti-spam writes
+    lastMarkReadRef.current = now;
+
+    try {
+      await setDoc(
+        doc(db, "chats_trabajos", String(cuestionarioId), "reads", u.uid),
+        { lastReadAt: serverTimestamp() },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("Error marcando chat como leído:", e);
+    }
+  }
 
   // Autenticación + asegurar documentos base
   useEffect(() => {
@@ -76,7 +95,6 @@ export default function ChatTrabajoPage() {
         } catch {
           // ignorar
         }
-
       } catch (e) {
         console.error("Error inicializando chat:", e);
       }
@@ -92,6 +110,10 @@ export default function ChatTrabajoPage() {
         const arr = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setMensajes(arr);
         setLoading(false);
+
+        // marcar como leído (al recibir/sincronizar)
+        markAsRead();
+
         // scroll al final
         requestAnimationFrame(() => {
           bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -123,22 +145,29 @@ export default function ChatTrabajoPage() {
         displayName: user.displayName || user.email || "Usuario",
       });
 
-      // Resumen para listados
-      const resumen = {
-        lastMessage: t.slice(0, 180),
-        updatedAt: serverTimestamp(),
-      };
+      // Resumen para listados + quién fue el último en hablar
+      await setDoc(
+        chatDocRef,
+        {
+          lastMessage: t.slice(0, 180),
+          updatedAt: serverTimestamp(),
+          lastSenderUid: user.uid,
+        },
+        { merge: true }
+      );
 
-      await updateDoc(chatDocRef, resumen);
+      // como lo acaba de enviar él, lo marcamos como leído para él
+      markAsRead();
     } catch (err) {
       console.error("Error enviando mensaje:", err);
-      // Si falla el updateDoc porque no existe aún, lo aseguramos con setDoc merge
+      // En caso de fallo, al menos reintentar guardar resumen del chat
       try {
         await setDoc(
           chatDocRef,
           {
             lastMessage: t.slice(0, 180),
             updatedAt: serverTimestamp(),
+            lastSenderUid: user.uid,
           },
           { merge: true }
         );
@@ -171,9 +200,7 @@ export default function ChatTrabajoPage() {
         {loading ? (
           <p className="text-center text-gray-500">Cargando chat…</p>
         ) : mensajes.length === 0 ? (
-          <p className="text-center text-gray-500">
-            Aún no hay mensajes.
-          </p>
+          <p className="text-center text-gray-500">Aún no hay mensajes.</p>
         ) : (
           <div className="space-y-3">
             {mensajes.map((m) => {
@@ -185,9 +212,7 @@ export default function ChatTrabajoPage() {
                 >
                   <div
                     className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm shadow ${
-                      mine
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-900"
+                      mine ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"
                     }`}
                   >
                     <div className="text-[11px] opacity-80 mb-1">
