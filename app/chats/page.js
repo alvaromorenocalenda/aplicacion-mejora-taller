@@ -33,14 +33,16 @@ export default function ChatsPage() {
     const unsub = onSnapshot(
       q,
       async (snap) => {
-        // Para que sea útil, enriquecemos con datos del cuestionario (matrícula, OR, cliente)
+        // Enriquecer con datos del cuestionario (matrícula, OR, cliente)
         const base = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
         const enriched = await Promise.all(
           base.map(async (c) => {
             const cuestionarioId = String(c.cuestionarioId || c.id);
             try {
-              const cq = await getDoc(doc(db, "cuestionarios_cliente", cuestionarioId));
+              const cq = await getDoc(
+                doc(db, "cuestionarios_cliente", cuestionarioId)
+              );
               if (cq.exists()) {
                 const datos = cq.data()?.datos || {};
                 return {
@@ -65,6 +67,45 @@ export default function ChatsPage() {
             };
           })
         );
+
+        // ✅ calcular no-leídos por usuario (reads/{uid}.lastReadAt)
+        const uid = auth.currentUser?.uid;
+
+        if (uid) {
+          try {
+            const withUnread = await Promise.all(
+              enriched.map(async (c) => {
+                const readRef = doc(db, "chats_trabajos", c.id, "reads", uid);
+                const readSnap = await getDoc(readRef);
+
+                const lastReadMs = readSnap.exists()
+                  ? readSnap.data()?.lastReadAt?.toMillis?.() || 0
+                  : 0;
+
+                const updatedMs =
+                  c.updatedAt?.toMillis?.() ||
+                  (c.updatedAt?.seconds ? c.updatedAt.seconds * 1000 : 0) ||
+                  0;
+
+                // Hay no-leído si:
+                // - el chat se actualizó después de tu última lectura
+                // - y el último mensaje NO lo has enviado tú
+                const unread =
+                  updatedMs > lastReadMs &&
+                  c.lastSenderUid &&
+                  c.lastSenderUid !== uid;
+
+                return { ...c, unread };
+              })
+            );
+
+            setItems(withUnread);
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.error("Error calculando no-leídos:", e);
+          }
+        }
 
         setItems(enriched);
         setLoading(false);
@@ -133,24 +174,49 @@ export default function ChatsPage() {
         <section className="space-y-3">
           {filtered.map((c) => {
             const id = String(c.cuestionarioId || c.id);
-            const when = c.updatedAt?.toDate ? c.updatedAt.toDate().toLocaleString() : "";
+            const when = c.updatedAt?.toDate
+              ? c.updatedAt.toDate().toLocaleString()
+              : "";
             return (
-              <div key={id} className="bg-white p-4 rounded shadow flex justify-between items-center gap-3 flex-wrap">
+              <div
+                key={id}
+                className="bg-white p-4 rounded shadow flex justify-between items-center gap-3 flex-wrap"
+              >
                 <div className="min-w-[260px]">
-                  <div className="font-semibold">
-                    {(c.matricula || "(sin matrícula)") + " — " + (c.numeroOR || "")}
+                  <div className="font-semibold flex items-center flex-wrap gap-2">
+                    <span>
+                      {(c.matricula || "(sin matrícula)") +
+                        " — " +
+                        (c.numeroOR || "")}
+                    </span>
+
+                    {c.unread ? (
+                      <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">
+                        ● NUEVO
+                      </span>
+                    ) : null}
                   </div>
+
                   {c.nombreCliente ? (
                     <div className="text-sm text-gray-600">{c.nombreCliente}</div>
                   ) : null}
+
                   <div className="text-xs text-gray-500 break-all">ID: {id}</div>
+
                   {c.lastMessage ? (
-                    <div className="text-sm text-gray-700 mt-1">💬 {c.lastMessage}</div>
+                    <div className="text-sm text-gray-700 mt-1">
+                      💬 {c.lastMessage}
+                    </div>
                   ) : (
-                    <div className="text-sm text-gray-500 mt-1">(sin mensajes)</div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      (sin mensajes)
+                    </div>
                   )}
+
                   {when ? (
-                    <div className="text-xs text-gray-500 mt-1">Actualizado: {when}</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Actualizado: {when}
+                    </div>
                   ) : null}
                 </div>
 
