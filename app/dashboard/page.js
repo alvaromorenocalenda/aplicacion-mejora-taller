@@ -105,14 +105,16 @@ export default function DashboardPage() {
       orderBy("creadoEn", "desc")
     );
     return onSnapshot(q, (snap) => {
-      setItems(
-        snap.docs.map((d) => ({
-          id: d.id,
-          datos: d.data().datos,
-          creadoEn: d.data().creadoEn,
-          tieneMensajesNoLeidos: d.data().tieneMensajesNoLeidos, // Añadido para verificar mensajes no leídos
-        }))
-      );
+      const fetchedItems = snap.docs.map((d) => ({
+        id: d.id,
+        datos: d.data().datos,
+        creadoEn: d.data().creadoEn,
+        tieneMensajesNoLeidos: d.data().tieneMensajesNoLeidos, // Añadido para verificar mensajes no leídos
+      }));
+
+      console.log(fetchedItems); // Verifica si los valores son correctos
+
+      setItems(fetchedItems);
     });
   }, [user]);
 
