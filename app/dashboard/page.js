@@ -13,7 +13,6 @@ import {
   deleteDoc,
   doc,
   updateDoc,
-  setDoc,
 } from "firebase/firestore";
 
 import { registerPushForUser } from "../../lib/pushNotifications";
@@ -109,7 +108,7 @@ export default function DashboardPage() {
         id: d.id,
         datos: d.data().datos,
         creadoEn: d.data().creadoEn,
-        tieneMensajesNoLeidos: d.data().tieneMensajesNoLeidos, // Añadido para verificar mensajes no leídos
+        tieneMensajesNoLeidos: d.data().tieneMensajesNoLeidos || false, // Asegúrate de que tiene un valor booleano
       }));
 
       console.log(fetchedItems); // Verifica si los valores son correctos
