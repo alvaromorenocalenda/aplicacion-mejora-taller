@@ -14,11 +14,10 @@ import {
   deleteDoc,
   doc,
   updateDoc,
-  setDoc, // ✅ AÑADIDO
+  setDoc,
 } from "firebase/firestore";
 
-import { getMessaging, getToken } from "firebase/messaging"; // ✅ AÑADIDO
-
+import { registerPushForUser } from "../../lib/pushNotifications";
 import { deleteChatTrabajo } from "../../lib/chatCleanup";
 
 // Clave para confirmar borrado
@@ -46,41 +45,22 @@ export default function DashboardPage() {
 
       setPushStatus("working");
 
-      // 1) Pedir permiso (debe ser por click)
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") {
-        setPushStatus("idle");
-        alert("No has permitido notificaciones.");
-        return;
-      }
+      const uid = auth.currentUser.uid;
 
-      // 2) Obtener token FCM
-      const messaging = getMessaging();
-      const token = await getToken(messaging, {
-        vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-      });
+      const token = await registerPushForUser(
+        uid,
+        { email: auth.currentUser.email || "" },
+        { requestPermission: true }
+      );
 
       if (!token) {
-        setPushStatus("error");
-        alert(
-          "No se pudo obtener el token. Revisa que NEXT_PUBLIC_FIREBASE_VAPID_KEY esté bien en Vercel."
-        );
+        setPushStatus("idle");
+        alert("No se pudo activar push (permiso denegado o sin VAPID key).");
         return;
       }
 
-      // 3) Guardar token en Firestore usando el TOKEN como ID del doc (CLAVE)
-      const uid = auth.currentUser.uid;
-      await setDoc(doc(db, "users", uid, "fcmTokens", token), {
-        createdAt: new Date(),
-        userAgent: navigator.userAgent,
-      });
-
       setPushStatus("enabled");
-      alert(
-        "✅ Notificaciones activadas.\n\nAhora en Firestore debería aparecer:\nusers -> " +
-          uid +
-          " -> fcmTokens -> (token largo)"
-      );
+      alert("✅ Notificaciones activadas.");
     } catch (err) {
       console.error("Error activando notificaciones:", err);
       setPushStatus("error");
@@ -97,6 +77,25 @@ export default function DashboardPage() {
     });
     return unsub;
   }, [router]);
+
+  // ✅ Auto-registrar token si ya hay permiso concedido
+  useEffect(() => {
+    if (!user) return;
+
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      registerPushForUser(
+        user.uid,
+        { email: user.email || "" },
+        { requestPermission: false }
+      )
+        .then((token) => {
+          if (token) setPushStatus("enabled");
+        })
+        .catch((e) => {
+          console.warn("Auto-register push falló:", e);
+        });
+    }
+  }, [user]);
 
   // 2) Suscribirse sólo a los cuestionarios con presupuesto PENDIENTE
   useEffect(() => {
