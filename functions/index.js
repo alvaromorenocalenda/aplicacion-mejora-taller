@@ -4,10 +4,15 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 const REGION = "europe-west1";
 
+/**
+ * Notificación push cuando se crea un mensaje en:
+ * chats_trabajos/{trabajoId}/messages/{messageId}
+ *
+ * Envía DATA-ONLY para evitar duplicados.
+ */
 exports.notifyOnChatMessage = functions
   .region(REGION)
-  .firestore
-  .document("chats_trabajos/{trabajoId}/messages/{messageId}")
+  .firestore.document("chats_trabajos/{trabajoId}/messages/{messageId}")
   .onCreate(async (snap, context) => {
     const msg = snap.data() || {};
     const { trabajoId } = context.params;
@@ -25,10 +30,8 @@ exports.notifyOnChatMessage = functions
 
     console.log("📩 Nuevo mensaje en", trabajoId, "sender:", senderUid);
 
-    // 1️⃣ TODOS los tokens del sistema
-    const tokensSnap = await admin.firestore()
-      .collectionGroup("fcmTokens")
-      .get();
+    // 1) Obtener todos los tokens registrados
+    const tokensSnap = await admin.firestore().collectionGroup("fcmTokens").get();
 
     if (tokensSnap.empty) {
       console.log("❌ No hay tokens");
@@ -36,41 +39,60 @@ exports.notifyOnChatMessage = functions
     }
 
     const tokens = [];
+    tokensSnap.forEach((d) => {
+      const data = d.data() || {};
 
-    tokensSnap.forEach(doc => {
-      const path = doc.ref.path.split("/");
-      const uid = path[1]; // users/{uid}/fcmTokens/{tokenId}
+      // Preferimos uid guardado dentro del doc (más fiable)
+      const uid =
+        data.uid ||
+        (() => {
+          const parts = d.ref.path.split("/");
+          return parts[1]; // users/{uid}/fcmTokens/{tokenId}
+        })();
 
-      if (uid === senderUid) return; // ❌ NO notificamos al remitente
+      if (uid === senderUid) return; // ❌ no notificamos al remitente
 
-      const token = doc.data().token || doc.id;
-      tokens.push(token);
+      const token = data.token || d.id;
+      if (token) tokens.push(token);
     });
 
-    if (!tokens.length) {
-      console.log("❌ Solo hay tokens del remitente");
+    const uniqueTokens = Array.from(new Set(tokens));
+
+    if (!uniqueTokens.length) {
+      console.log("❌ Solo hay tokens del remitente (o no hay tokens válidos)");
       return null;
     }
 
-    console.log("✅ Tokens destino:", tokens.length);
+    console.log("✅ Tokens destino:", uniqueTokens.length);
 
-    // 2️⃣ DATA-ONLY (evita duplicados)
+    // 2) DATA-ONLY
     const message = {
-      tokens,
+      tokens: uniqueTokens,
       data: {
         title,
         body,
         url,
+        chatId: String(trabajoId),
+        tag: `chat-${trabajoId}`,
       },
     };
 
     const res = await admin.messaging().sendEachForMulticast(message);
 
-    console.log(
-      "📨 Enviado:",
-      "OK =", res.successCount,
-      "FAIL =", res.failureCount
-    );
+    console.log("📨 Enviado:", "OK =", res.successCount, "FAIL =", res.failureCount);
+
+    // Logs de errores (y detección de tokens inválidos)
+    res.responses.forEach((r, idx) => {
+      if (!r.success) {
+        const err = r.error;
+        console.log(
+          "❌ Error token idx",
+          idx,
+          err?.code || "",
+          err?.message || err
+        );
+      }
+    });
 
     return null;
   });
