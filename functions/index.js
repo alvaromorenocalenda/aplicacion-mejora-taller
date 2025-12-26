@@ -79,7 +79,13 @@ exports.notifyOnChatMessage = functions
 
     const res = await admin.messaging().sendEachForMulticast(message);
 
-    console.log("📨 Enviado:", "OK =", res.successCount, "FAIL =", res.failureCount);
+    console.log(
+      "📨 Enviado:",
+      "OK =",
+      res.successCount,
+      "FAIL =",
+      res.failureCount
+    );
 
     // Logs de errores (y detección de tokens inválidos)
     res.responses.forEach((r, idx) => {
