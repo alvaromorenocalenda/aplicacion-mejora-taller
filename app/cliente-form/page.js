@@ -4,7 +4,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
-import { setDoc, doc, collection, serverTimestamp } from "firebase/firestore";
+import { setDoc, doc, serverTimestamp } from "firebase/firestore";
+import { fetchMecanicos } from "../../lib/userProfile";
 
 export default function ClienteFormPage() {
   const router = useRouter();
@@ -12,6 +13,10 @@ export default function ClienteFormPage() {
   const [checking, setChecking] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Mecánicos para asignación (opcional)
+  const [mecanicos, setMecanicos] = useState([]);
+  const [mecanicoUid, setMecanicoUid] = useState("");
 
   // 1) Proteger ruta
   useEffect(() => {
@@ -23,6 +28,13 @@ export default function ClienteFormPage() {
     setUser(u);
     setChecking(false);
   }, [router]);
+
+  // Cargar lista de mecánicos (si existe colección usuarios)
+  useEffect(() => {
+    fetchMecanicos()
+      .then(setMecanicos)
+      .catch(() => setMecanicos([]));
+  }, []);
 
   if (checking) return <p className="p-6 text-center">Comprobando sesión…</p>;
   if (!user) return null;
@@ -47,6 +59,17 @@ export default function ClienteFormPage() {
     setError("");
     try {
       const datos = readFormData();
+
+      // Resolver nombre del mecánico (si se seleccionó)
+      const mec = mecanicos.find((m) => m.uid === mecanicoUid);
+      if (mecanicoUid) {
+        datos.mecanicoUid = mecanicoUid;
+        datos.mecanicoNombre = mec?.nombre || "";
+      } else {
+        delete datos.mecanicoUid;
+        delete datos.mecanicoNombre;
+      }
+
       // guardado con ID personalizado: matricula-numeroOR
       const docId = `${datos.matricula}-${datos.numeroOR}`;
       await setDoc(doc(db, "cuestionarios_cliente", docId), {
@@ -54,6 +77,9 @@ export default function ClienteFormPage() {
         creadoEn: serverTimestamp(),
         estado: "PENDIENTE_DIAGNOSTICO",
         estadoPresupuesto: "PENDIENTE_PRESUPUESTO",
+        // Asignación (opcional)
+        asignadoMecanicoUid: mecanicoUid || null,
+        asignadoMecanicoNombre: mec?.nombre || null,
         datos,
       });
       router.push("/dashboard");
@@ -168,6 +194,26 @@ export default function ClienteFormPage() {
                 required
                 className="mt-1 w-full border px-2 py-1 text-sm rounded"
               />
+            </div>
+
+            {/* Mecánico (opcional) */}
+            <div>
+              <label className="block text-xs font-bold">Mecánico (opcional):</label>
+              <select
+                value={mecanicoUid}
+                onChange={(e) => setMecanicoUid(e.target.value)}
+                className="mt-1 w-full border px-2 py-1 text-sm rounded"
+              >
+                <option value="">Sin asignar</option>
+                {mecanicos.map((m) => (
+                  <option key={m.uid} value={m.uid}>
+                    {m.nombre}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-gray-500">
+                * Se rellena desde Firestore: colección <b>usuarios</b> con rol <b>MECANICO</b>.
+              </p>
             </div>
           </div>
 
