@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 
 import { deleteChatTrabajo } from "../../lib/chatCleanup";
+import { subscribeUserProfile } from "../../lib/userProfile";
 
 // clave para confirmar borrado
 const CONFIRM_KEY = "CALENDABORRAR";
@@ -33,11 +34,21 @@ export default function PresupuestosDenegadosPage() {
   const [searchCh, setSearchCh] = useState("");
   const [searchR, setSearchR] = useState("");
 
+  const [userRol, setUserRol] = useState("ADMIN");
+  const [onlyMine, setOnlyMine] = useState(true);
+
   useEffect(() => {
     if (!auth.currentUser) {
       router.replace("/login");
       return;
     }
+    const u = auth.currentUser;
+    const unsub = subscribeUserProfile(u.uid, (p) => {
+      const rol = (p?.rol || "ADMIN").toUpperCase();
+      setUserRol(rol);
+      if (rol !== "MECANICO") setOnlyMine(false);
+      else setOnlyMine(true);
+    });
     (async () => {
       // cargar cada colección filtrada por denegado
       const [cqSnap, chSnap, rSnap] = await Promise.all([
@@ -45,12 +56,24 @@ export default function PresupuestosDenegadosPage() {
         getDocs(query(collection(db, "checklists"), where("estadoPresupuesto", "==", "DENEGADO"))),
         getDocs(query(collection(db, "recambios"), where("estadoPresupuesto", "==", "DENEGADO"))),
       ]);
-      setCuestionarios(cqSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setChecklists(chSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setRecambios(rSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const cq = cqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const ch = chSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const r  = rSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      if (userRol === "MECANICO" && onlyMine) {
+        const allowed = new Set(cq.filter(x => x.asignadoMecanicoUid === u.uid).map(x => x.id));
+        setCuestionarios(cq.filter(x => allowed.has(x.id)));
+        setChecklists(ch.filter(x => allowed.has(x.id)));
+        setRecambios(r.filter(x => allowed.has(x.id)));
+      } else {
+        setCuestionarios(cq);
+        setChecklists(ch);
+        setRecambios(r);
+      }
       setLoading(false);
     })();
-  }, [router]);
+    return () => unsub && unsub();
+  }, [router, userRol, onlyMine]);
 
   const confirmAndDeleteAll = async (itemId) => {
     // pide clave
@@ -121,6 +144,18 @@ export default function PresupuestosDenegadosPage() {
       >
         ← Volver al Dashboard
       </button>
+
+      {userRol === "MECANICO" && (
+        <div className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            id="onlyMineDeny"
+            type="checkbox"
+            checked={onlyMine}
+            onChange={(e) => setOnlyMine(e.target.checked)}
+          />
+          <label htmlFor="onlyMineDeny">Ver sólo mis trabajos asignados</label>
+        </div>
+      )}
 
       {/* Cuestionarios Cliente */}
       <section>
