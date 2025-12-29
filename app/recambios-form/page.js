@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 
 import { deleteChatTrabajo } from "../../lib/chatCleanup";
+import { subscribeUserProfile } from "../../lib/userProfile";
 
 const CONFIRM_KEY         = "CALENDABORRAR";   // sigue para borrado
 const CONFIRM_REJECT_KEY  = "CALENDADENEGAR";  // para denegar presupuesto
@@ -24,6 +25,8 @@ const CONFIRM_FINALIZAR_KEY = "CALENDAFINALIZAR";
 
 export default function RecambiosListPage() {
   const router = useRouter();
+  const [userRol, setUserRol] = useState("ADMIN");
+  const [onlyMine, setOnlyMine] = useState(true);
   const [pendientes, setPendientes] = useState([]);
   const [realizados, setRealizados] = useState([]);
   const [searchPend, setSearchPend] = useState("");
@@ -33,8 +36,39 @@ export default function RecambiosListPage() {
     if (!auth.currentUser) router.replace("/login");
   }, [router]);
 
+  // Rol de usuario (para limitar trabajos a un mecánico)
+  useEffect(() => {
+    const u = auth.currentUser;
+    if (!u) return;
+    return subscribeUserProfile(u.uid, (p) => {
+      const rol = (p?.rol || "ADMIN").toUpperCase();
+      setUserRol(rol);
+      if (rol !== "MECANICO") setOnlyMine(false);
+      else setOnlyMine(true);
+    });
+  }, [userRol, onlyMine]);
+
   useEffect(() => {
     (async () => {
+      const uid = auth.currentUser?.uid || null;
+
+      // Si es mecánico, calculamos qué IDs puede ver (según asignación en cuestionarios_cliente)
+      let allowedIds = null;
+      if (uid && userRol === "MECANICO" && onlyMine) {
+        const qs = await getDocs(
+          query(
+            collection(db, "cuestionarios_cliente"),
+            where("estadoPresupuesto", "==", "PENDIENTE_PRESUPUESTO")
+          )
+        );
+        allowedIds = new Set(
+          qs.docs
+            .map((d) => ({ id: d.id, asignado: d.data().asignadoMecanicoUid || null }))
+            .filter((x) => x.asignado === uid)
+            .map((x) => x.id)
+        );
+      }
+
       // Traer solo checklists con presupuesto pendiente
       const chkSnap = await getDocs(
         query(
@@ -43,7 +77,9 @@ export default function RecambiosListPage() {
           orderBy("completadoEn", "desc")
         )
       );
-      const checks = chkSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const checks = chkSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter((c) => !allowedIds || allowedIds.has(c.id));
 
       // Traer solo recambios con presupuesto pendiente (incluyendo estadoRecambios)
       const recSnap = await getDocs(
@@ -52,11 +88,16 @@ export default function RecambiosListPage() {
           where("estadoPresupuesto", "==", "PENDIENTE_PRESUPUESTO")
         )
       );
-      const recById = new Map(recSnap.docs.map(d => [d.id, d.data()]));
+      const recById = new Map(
+        recSnap.docs
+          .filter((d) => !allowedIds || allowedIds.has(d.id))
+          .map(d => [d.id, d.data()])
+      );
 
       const pend = [];
       const real = [];
       for (const c of checks) {
+        if (allowedIds && !allowedIds.has(c.id)) continue;
         const rec = recById.get(c.id);
         const estado = rec?.estadoRecambios || "SIN_INICIAR";
         const item = { ...c, estadoRecambios: estado };
@@ -240,6 +281,18 @@ const handleFinalizarPresupuesto = async (checklistId) => {
           </button>
         </div>
       </header>
+
+      {userRol === "MECANICO" && (
+        <div className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            id="onlyMineRec"
+            type="checkbox"
+            checked={onlyMine}
+            onChange={(e) => setOnlyMine(e.target.checked)}
+          />
+          <label htmlFor="onlyMineRec">Ver sólo mis trabajos asignados</label>
+        </div>
+      )}
 
       {/* Pendientes de recambios */}
       <section>
