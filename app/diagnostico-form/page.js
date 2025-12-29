@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 
 import { deleteChatTrabajo } from "../../lib/chatCleanup";
+import { subscribeUserProfile } from "../../lib/userProfile";
 
 // clave para confirmar borrado
 const CONFIRM_KEY = "CALENDABORRAR";
@@ -28,6 +29,9 @@ export default function DiagnosticosPage() {
   const [loading, setLoading] = useState(true);
   const [pendientes, setPendientes] = useState([]);
   const [realizadas, setRealizadas] = useState([]);
+
+  const [userRol, setUserRol] = useState("ADMIN");
+  const [onlyMine, setOnlyMine] = useState(true);
 
   // estados de búsqueda
   const [searchPend, setSearchPend] = useState("");
@@ -44,6 +48,17 @@ export default function DiagnosticosPage() {
     }
   }, [router]);
 
+  // Rol de usuario (para limitar trabajos a un mecánico)
+  useEffect(() => {
+    if (!user) return;
+    return subscribeUserProfile(user.uid, (p) => {
+      const rol = (p?.rol || "ADMIN").toUpperCase();
+      setUserRol(rol);
+      if (rol !== "MECANICO") setOnlyMine(false);
+      else setOnlyMine(true);
+    });
+  }, [user]);
+
   // Carga cuestionarios y checklists filtrando por presupuesto pendiente
   useEffect(() => {
     if (!user) return;
@@ -57,12 +72,18 @@ export default function DiagnosticosPage() {
       const snap1 = await getDocs(q1);
       const all = snap1.docs.map((d) => ({ id: d.id, ...d.data() }));
 
+      // Si es mecánico y el filtro está activo, sólo evaluar sus trabajos asignados
+      const base =
+        userRol === "MECANICO" && onlyMine
+          ? all.filter((c) => c.asignadoMecanicoUid === user.uid)
+          : all;
+
       // 2) Separa pendientes vs realizadas
       const qc = collection(db, "checklists");
       const pend = [];
       const real = [];
 
-      for (const c of all) {
+      for (const c of base) {
         // consulta checklists vinculadas PENDIENTE_PRESUPUESTO
         const q2 = query(
           qc,
@@ -90,7 +111,7 @@ export default function DiagnosticosPage() {
       );
       setRealizadas(real);
     })();
-  }, [user]);
+  }, [user, userRol, onlyMine]);
 
   if (loading) {
     return <p className="p-6 text-center">Comprobando sesión…</p>;
@@ -203,6 +224,18 @@ export default function DiagnosticosPage() {
           </button>
         </div>
       </header>
+
+      {userRol === "MECANICO" && (
+        <div className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            id="onlyMineDiag"
+            type="checkbox"
+            checked={onlyMine}
+            onChange={(e) => setOnlyMine(e.target.checked)}
+          />
+          <label htmlFor="onlyMineDiag">Ver sólo mis trabajos asignados</label>
+        </div>
+      )}
 
       {/* Pendientes */}
       <section>
