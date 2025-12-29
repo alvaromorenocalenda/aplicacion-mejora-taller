@@ -66,6 +66,23 @@ export default function RecambiosListPage() {
     });
   }, [user]);
 
+  // Helper: Firestore "in" tiene límite (30)
+  async function fetchCuestionariosByIds(ids) {
+    const out = new Map();
+    const CHUNK = 30;
+
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const chunk = ids.slice(i, i + CHUNK);
+      // donde "__name__" es el id del doc
+      const snap = await getDocs(
+        query(collection(db, "cuestionarios_cliente"), where("__name__", "in", chunk))
+      );
+      snap.docs.forEach((d) => out.set(d.id, d.data()));
+    }
+
+    return out;
+  }
+
   // ✅ Cargar datos SOLO cuando hay usuario (NO depende de onlyMine)
   useEffect(() => {
     if (!user) return;
@@ -88,17 +105,26 @@ export default function RecambiosListPage() {
 
       // 2) Recambios pendientes (para saber estadoRecambios y checklistEditada)
       const recSnap = await getDocs(
-        query(
-          collection(db, "recambios"),
-          where("estadoPresupuesto", "==", "PENDIENTE_PRESUPUESTO")
-        )
+        query(collection(db, "recambios"), where("estadoPresupuesto", "==", "PENDIENTE_PRESUPUESTO"))
       );
 
       if (mySeq !== loadSeq.current) return;
 
       const recById = new Map(recSnap.docs.map((d) => [d.id, d.data()]));
 
-      // 3) Construir listas "pendientes/realizados" (ALL)
+      // 3) 🔥 Traer asignación desde cuestionarios_cliente usando cuestionarioId de cada checklist
+      const idsCuestionarios = Array.from(
+        new Set(checks.map((c) => c.cuestionarioId).filter(Boolean))
+      );
+
+      let cuestionariosMap = new Map();
+      if (idsCuestionarios.length > 0) {
+        cuestionariosMap = await fetchCuestionariosByIds(idsCuestionarios);
+      }
+
+      if (mySeq !== loadSeq.current) return;
+
+      // 4) Construir listas "pendientes/realizados" (ALL) enriquecidas con asignación
       const pend = [];
       const real = [];
 
@@ -106,8 +132,16 @@ export default function RecambiosListPage() {
         const rec = recById.get(c.id);
         const estado = rec?.estadoRecambios || "SIN_INICIAR";
 
+        const cuest = c.cuestionarioId ? cuestionariosMap.get(c.cuestionarioId) : null;
+
         const item = {
           ...c,
+
+          // ✅ asignación: primero la que venga ya en checklist, si no, la del cuestionario
+          asignadoMecanicoUid: c.asignadoMecanicoUid ?? cuest?.asignadoMecanicoUid ?? null,
+          asignadoMecanicoNombre: c.asignadoMecanicoNombre ?? cuest?.asignadoMecanicoNombre ?? null,
+
+          // estado recambios y avisos
           estadoRecambios: estado,
           checklistEditada: !!rec?.checklistEditada,
         };
