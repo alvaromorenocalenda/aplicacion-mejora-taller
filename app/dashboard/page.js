@@ -19,6 +19,7 @@ import {
 
 import { registerPushForUser } from "../../lib/pushNotifications";
 import { deleteChatTrabajo } from "../../lib/chatCleanup";
+import { subscribeUserProfile } from "../../lib/userProfile";
 
 // Clave para confirmar borrado
 const CONFIRM_KEY = "CALENDABORRAR";
@@ -31,6 +32,9 @@ export default function DashboardPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+
+  const [userRol, setUserRol] = useState("ADMIN");
+  const [onlyMine, setOnlyMine] = useState(true);
 
   // ✅ Estado para UI de notificaciones
   const [pushStatus, setPushStatus] = useState("idle"); // idle | working | enabled | error
@@ -78,6 +82,17 @@ export default function DashboardPage() {
     return unsub;
   }, [router]);
 
+  // Rol de usuario (para limitar trabajos a un mecánico)
+  useEffect(() => {
+    if (!user) return;
+    return subscribeUserProfile(user.uid, (p) => {
+      const rol = (p?.rol || "ADMIN").toUpperCase();
+      setUserRol(rol);
+      if (rol !== "MECANICO") setOnlyMine(false);
+      else setOnlyMine(true);
+    });
+  }, [user]);
+
   // ✅ Auto-registrar token si ya hay permiso concedido
   useEffect(() => {
     if (!user) return;
@@ -106,15 +121,22 @@ export default function DashboardPage() {
       orderBy("creadoEn", "desc")
     );
     return onSnapshot(q, (snap) => {
-      setItems(
-        snap.docs.map((d) => ({
-          id: d.id,
-          datos: d.data().datos,
-          creadoEn: d.data().creadoEn,
-        }))
-      );
+      const list = snap.docs.map((d) => ({
+        id: d.id,
+        datos: d.data().datos,
+        creadoEn: d.data().creadoEn,
+        asignadoMecanicoUid: d.data().asignadoMecanicoUid || null,
+        asignadoMecanicoNombre: d.data().asignadoMecanicoNombre || null,
+      }));
+
+      // Si el usuario es MECANICO, por defecto ver sólo sus trabajos
+      if (userRol === "MECANICO" && onlyMine) {
+        setItems(list.filter((it) => it.asignadoMecanicoUid === user.uid));
+      } else {
+        setItems(list);
+      }
     });
-  }, [user]);
+  }, [user, userRol, onlyMine]);
 
   // 3) Eliminar cuestionario con clave
   const handleDelete = async (id) => {
@@ -367,6 +389,21 @@ export default function DashboardPage() {
             className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300"
           />
         </div>
+
+        {/* Filtro para mecánicos */}
+        {userRol === "MECANICO" && (
+          <div className="mb-4 flex items-center gap-2 text-sm text-gray-700">
+            <input
+              id="onlyMine"
+              type="checkbox"
+              checked={onlyMine}
+              onChange={(e) => setOnlyMine(e.target.checked)}
+            />
+            <label htmlFor="onlyMine">
+              Ver sólo mis trabajos asignados
+            </label>
+          </div>
+        )}
 
         {filteredItems.length === 0 ? (
           <p className="text-gray-600">No hay cuestionarios que coincidan.</p>
