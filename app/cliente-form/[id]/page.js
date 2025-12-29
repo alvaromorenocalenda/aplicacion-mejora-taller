@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { auth, db } from "../../../lib/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { fetchMecanicos } from "../../../lib/userProfile";
 
 export default function ClienteFormDetail() {
   const { id } = useParams();
@@ -12,6 +13,8 @@ export default function ClienteFormDetail() {
   const [loading, setLoading] = useState(true);
   const [modoEdicion, setModoEdicion] = useState(false);
   const [datosEditados, setDatosEditados] = useState({});
+
+  const [mecanicos, setMecanicos] = useState([]);
 
   const handleCampoChange = useCallback((campo, valor) => {
     setDatosEditados((prev) => ({ ...prev, [campo]: valor }));
@@ -22,6 +25,13 @@ export default function ClienteFormDetail() {
     if (queryParams.get("edit") === "true") {
       setModoEdicion(true);
     }
+  }, []);
+
+  // Cargar mecánicos para poder reasignar el trabajo
+  useEffect(() => {
+    fetchMecanicos()
+      .then(setMecanicos)
+      .catch(() => setMecanicos([]));
   }, []);
 
   useEffect(() => {
@@ -52,8 +62,15 @@ export default function ClienteFormDetail() {
   const guardarCambios = async () => {
     try {
       const ref = doc(db, "cuestionarios_cliente", id);
+      const mec = mecanicos.find((m) => m.uid === (datosEditados.mecanicoUid || ""));
       await updateDoc(ref, {
-        datos: datosEditados,
+        datos: {
+          ...datosEditados,
+          mecanicoNombre: datosEditados.mecanicoUid ? (mec?.nombre || datosEditados.mecanicoNombre || "") : "",
+        },
+        // duplicamos para poder filtrar por mecánico sin leer datos
+        asignadoMecanicoUid: datosEditados.mecanicoUid || null,
+        asignadoMecanicoNombre: datosEditados.mecanicoUid ? (mec?.nombre || datosEditados.mecanicoNombre || null) : null,
       });
       alert("Cambios guardados correctamente.");
       router.refresh();
@@ -152,6 +169,31 @@ export default function ClienteFormDetail() {
 
             {/* Asesor justo después de las fechas */}
             {renderInput("Asesor", "asesor")}
+
+            {/* Mecánico (opcional) */}
+            <div>
+              <p className="text-xs font-bold text-gray-600 mb-1">
+                Mecánico (opcional)
+              </p>
+              <select
+                className="border border-gray-300 px-2 py-1 rounded w-full"
+                value={datosEditados.mecanicoUid || ""}
+                onChange={(e) => handleCampoChange("mecanicoUid", e.target.value)}
+                disabled={!modoEdicion}
+              >
+                <option value="">Sin asignar</option>
+                {mecanicos.map((m) => (
+                  <option key={m.uid} value={m.uid}>
+                    {m.nombre}
+                  </option>
+                ))}
+              </select>
+              {!!datosEditados.mecanicoUid && (
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Asignado a: <b>{mecanicos.find((m) => m.uid === datosEditados.mecanicoUid)?.nombre || datosEditados.mecanicoNombre || ""}</b>
+                </p>
+              )}
+            </div>
           </div>
 
           {renderInput("Descripción del síntoma", "descripcion")}
