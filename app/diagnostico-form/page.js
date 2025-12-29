@@ -1,7 +1,7 @@
 // app/diagnostico-form/page.js
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import {
@@ -12,7 +12,7 @@ import {
   orderBy,
   deleteDoc,
   updateDoc,
-  doc
+  doc,
 } from "firebase/firestore";
 
 import { deleteChatTrabajo } from "../../lib/chatCleanup";
@@ -20,15 +20,17 @@ import { subscribeUserProfile } from "../../lib/userProfile";
 
 // clave para confirmar borrado
 const CONFIRM_KEY = "CALENDABORRAR";
-const CONFIRM_REJECT_KEY  = "CALENDADENEGAR";  // para denegar presupuesto
+const CONFIRM_REJECT_KEY = "CALENDADENEGAR"; // para denegar presupuesto
 const CONFIRM_FINALIZAR_KEY = "CALENDAFINALIZAR";
 
 export default function DiagnosticosPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [pendientes, setPendientes] = useState([]);
-  const [realizadas, setRealizadas] = useState([]);
+
+  // ✅ Guardamos listas "completas" (sin filtrar por mecánico)
+  const [pendientesAll, setPendientesAll] = useState([]);
+  const [realizadasAll, setRealizadasAll] = useState([]);
 
   const [userRol, setUserRol] = useState("ADMIN");
   const [onlyMine, setOnlyMine] = useState(true);
@@ -36,6 +38,12 @@ export default function DiagnosticosPage() {
   // estados de búsqueda
   const [searchPend, setSearchPend] = useState("");
   const [searchReal, setSearchReal] = useState("");
+
+  // Para evitar que el rol te "pise" el checkbox cuando haces click
+  const didInitOnlyMine = useRef(false);
+
+  // Para evitar refrescos viejos pisando estado
+  const loadSeq = useRef(0);
 
   // Protege ruta
   useEffect(() => {
@@ -54,14 +62,21 @@ export default function DiagnosticosPage() {
     return subscribeUserProfile(user.uid, (p) => {
       const rol = (p?.rol || "ADMIN").toUpperCase();
       setUserRol(rol);
-      if (rol !== "MECANICO") setOnlyMine(false);
-      else setOnlyMine(true);
+
+      // ✅ solo establecer valor por defecto 1 vez (no pisar clicks del usuario)
+      if (!didInitOnlyMine.current) {
+        didInitOnlyMine.current = true;
+        setOnlyMine(rol === "MECANICO");
+      }
     });
   }, [user]);
 
-  // Carga cuestionarios y checklists filtrando por presupuesto pendiente
+  // ✅ Carga datos SOLO cuando hay usuario (NO depende de onlyMine)
   useEffect(() => {
     if (!user) return;
+
+    const mySeq = ++loadSeq.current;
+
     (async () => {
       // 1) Cargar cuestionarios cliente PENDIENTE_PRESUPUESTO
       const q1 = query(
@@ -70,27 +85,25 @@ export default function DiagnosticosPage() {
         orderBy("creadoEn", "desc")
       );
       const snap1 = await getDocs(q1);
-      const all = snap1.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      // Si es mecánico y el filtro está activo, sólo evaluar sus trabajos asignados
-      const base =
-        userRol === "MECANICO" && onlyMine
-          ? all.filter((c) => c.asignadoMecanicoUid === user.uid)
-          : all;
+      if (mySeq !== loadSeq.current) return; // ignora carga vieja
 
-      // 2) Separa pendientes vs realizadas
+      const allCuestionarios = snap1.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      // 2) Separar pendientes vs realizadas según exista checklist
       const qc = collection(db, "checklists");
       const pend = [];
       const real = [];
 
-      for (const c of base) {
-        // consulta checklists vinculadas PENDIENTE_PRESUPUESTO
+      for (const c of allCuestionarios) {
         const q2 = query(
           qc,
           where("cuestionarioId", "==", c.id),
           where("estadoPresupuesto", "==", "PENDIENTE_PRESUPUESTO")
         );
         const snap2 = await getDocs(q2);
+
+        if (mySeq !== loadSeq.current) return; // ignora carga vieja
 
         if (snap2.empty) {
           pend.push(c);
@@ -104,14 +117,30 @@ export default function DiagnosticosPage() {
         }
       }
 
-      setPendientes(pend);
       // orden descendente por fecha completado
-      real.sort(
-        (a, b) => b.completadoEn.toMillis() - a.completadoEn.toMillis()
-      );
-      setRealizadas(real);
+      real.sort((a, b) => b.completadoEn.toMillis() - a.completadoEn.toMillis());
+
+      setPendientesAll(pend);
+      setRealizadasAll(real);
     })();
-  }, [user, userRol, onlyMine]);
+  }, [user]);
+
+  // ✅ Filtrado EN MEMORIA (sin refetch): aquí desaparece el bug del click rápido
+  const pendientes = useMemo(() => {
+    if (!user) return [];
+    if (userRol === "MECANICO" && onlyMine) {
+      return pendientesAll.filter((c) => c.asignadoMecanicoUid === user.uid);
+    }
+    return pendientesAll;
+  }, [pendientesAll, userRol, onlyMine, user]);
+
+  const realizadas = useMemo(() => {
+    if (!user) return [];
+    if (userRol === "MECANICO" && onlyMine) {
+      return realizadasAll.filter((c) => c.asignadoMecanicoUid === user.uid);
+    }
+    return realizadasAll;
+  }, [realizadasAll, userRol, onlyMine, user]);
 
   if (loading) {
     return <p className="p-6 text-center">Comprobando sesión…</p>;
@@ -132,20 +161,17 @@ export default function DiagnosticosPage() {
     try {
       // Borrar chat asociado al trabajo
       await deleteChatTrabajo(db, cuestionarioId);
+
       if (confirm("¿Deseas borrar los recambios asociados?")) {
         await deleteDoc(doc(db, "checklists", checklistId));
-        setRealizadas((prev) =>
-          prev.filter((c) => c.checklistId !== checklistId)
-        );
+        // ✅ borrar de ALL (para que el filtro no “resucite” registros)
+        setRealizadasAll((prev) => prev.filter((c) => c.checklistId !== checklistId));
         alert("Recambios eliminados.");
       }
-      if (
-        confirm(
-          "¿Deseas también borrar el cuestionario cliente asociado?"
-        )
-      ) {
+
+      if (confirm("¿Deseas también borrar el cuestionario cliente asociado?")) {
         await deleteDoc(doc(db, "cuestionarios_cliente", cuestionarioId));
-        setPendientes((prev) => prev.filter((c) => c.id !== cuestionarioId));
+        setPendientesAll((prev) => prev.filter((c) => c.id !== cuestionarioId));
         alert("Cuestionario cliente eliminado.");
       }
     } catch (err) {
@@ -154,7 +180,7 @@ export default function DiagnosticosPage() {
     }
   };
 
- // rechazar presupuesto con clave y dos params
+  // rechazar presupuesto con clave y dos params
   const handleRejectPresupuesto = async (checklistId, cuestionarioId) => {
     const clave = prompt("Para denegar presupuesto introduce la clave:");
     if (clave !== CONFIRM_REJECT_KEY) {
@@ -164,43 +190,51 @@ export default function DiagnosticosPage() {
     try {
       // Si se deniega, también borramos el chat asociado
       await deleteChatTrabajo(db, cuestionarioId);
-      await updateDoc(doc(db, "cuestionarios_cliente", cuestionarioId), { estadoPresupuesto: "DENEGADO" });
-      await updateDoc(doc(db, "checklists", checklistId), {           estadoPresupuesto: "DENEGADO" });
+
+      await updateDoc(doc(db, "cuestionarios_cliente", cuestionarioId), {
+        estadoPresupuesto: "DENEGADO",
+      });
+      await updateDoc(doc(db, "checklists", checklistId), { estadoPresupuesto: "DENEGADO" });
       try {
-        await updateDoc(doc(db, "recambios", checklistId), {      estadoPresupuesto: "DENEGADO" });
+        await updateDoc(doc(db, "recambios", checklistId), { estadoPresupuesto: "DENEGADO" });
       } catch {}
-      // refrescar lista: retirar
-      setRealizadas(prev => prev.filter(c => c.checklistId !== checklistId));
-      setPendientes(prev => prev.filter(c => c.id !== cuestionarioId));
-    } catch(err) {
+
+      // ✅ retirar de ALL
+      setRealizadasAll((prev) => prev.filter((c) => c.checklistId !== checklistId));
+      setPendientesAll((prev) => prev.filter((c) => c.id !== cuestionarioId));
+    } catch (err) {
       console.error(err);
       alert("Error al denegar: " + err.message);
     }
   };
 
   const handleFinalizarPresupuesto = async (checklistId, cuestionarioId) => {
-  const clave = prompt("Para finalizar el trabajo, introduce la clave:");
-  if (clave !== CONFIRM_FINALIZAR_KEY) {
-    alert("Clave incorrecta. Operación cancelada.");
-    return;
-  }
-  try {
-    // Si se finaliza, también borramos el chat asociado
-    await deleteChatTrabajo(db, cuestionarioId);
-    await updateDoc(doc(db, "cuestionarios_cliente", cuestionarioId), { estadoPresupuesto: "FINALIZADO" });
-    await updateDoc(doc(db, "checklists", checklistId), { estadoPresupuesto: "FINALIZADO" });
+    const clave = prompt("Para finalizar el trabajo, introduce la clave:");
+    if (clave !== CONFIRM_FINALIZAR_KEY) {
+      alert("Clave incorrecta. Operación cancelada.");
+      return;
+    }
     try {
-      await updateDoc(doc(db, "recambios", checklistId), { estadoPresupuesto: "FINALIZADO" });
-    } catch {}
-    // Refrescar listas
-    setRealizadas(prev => prev.filter(c => c.checklistId !== checklistId));
-    setPendientes(prev => prev.filter(c => c.id !== cuestionarioId));
-    alert("Trabajo finalizado correctamente.");
-  } catch (err) {
-    console.error(err);
-    alert("Error al finalizar: " + err.message);
-  }
-};
+      // Si se finaliza, también borramos el chat asociado
+      await deleteChatTrabajo(db, cuestionarioId);
+
+      await updateDoc(doc(db, "cuestionarios_cliente", cuestionarioId), {
+        estadoPresupuesto: "FINALIZADO",
+      });
+      await updateDoc(doc(db, "checklists", checklistId), { estadoPresupuesto: "FINALIZADO" });
+      try {
+        await updateDoc(doc(db, "recambios", checklistId), { estadoPresupuesto: "FINALIZADO" });
+      } catch {}
+
+      // ✅ retirar de ALL
+      setRealizadasAll((prev) => prev.filter((c) => c.checklistId !== checklistId));
+      setPendientesAll((prev) => prev.filter((c) => c.id !== cuestionarioId));
+      alert("Trabajo finalizado correctamente.");
+    } catch (err) {
+      console.error(err);
+      alert("Error al finalizar: " + err.message);
+    }
+  };
 
   return (
     <main className="max-w-4xl mx-auto p-6 space-y-8">
@@ -215,9 +249,7 @@ export default function DiagnosticosPage() {
             Volver al Dashboard
           </button>
           <button
-            onClick={() =>
-              auth.signOut().then(() => router.replace("/login"))
-            }
+            onClick={() => auth.signOut().then(() => router.replace("/login"))}
             className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
           >
             Salir
@@ -239,9 +271,7 @@ export default function DiagnosticosPage() {
 
       {/* Pendientes */}
       <section>
-        <h2 className="text-2xl font-semibold mb-4">
-          Pendientes de diagnóstico
-        </h2>
+        <h2 className="text-2xl font-semibold mb-4">Pendientes de diagnóstico</h2>
 
         <div className="relative mb-4">
           <input
@@ -259,8 +289,8 @@ export default function DiagnosticosPage() {
           pendientes
             .filter(
               (c) =>
-                c.datos.matricula.toLowerCase().includes(searchPend.toLowerCase()) ||
-                c.datos.numeroOR.toLowerCase().includes(searchPend.toLowerCase())
+                (c?.datos?.matricula || "").toLowerCase().includes(searchPend.toLowerCase()) ||
+                (c?.datos?.numeroOR || "").toLowerCase().includes(searchPend.toLowerCase())
             )
             .map((c) => (
               <div
@@ -269,10 +299,10 @@ export default function DiagnosticosPage() {
               >
                 <div>
                   <p className="font-medium">
-                    {c.datos.matricula} — {c.datos.numeroOR}
+                    {c.datos?.matricula} — {c.datos?.numeroOR}
                   </p>
                   <p className="text-sm text-gray-500">
-                    Creado: {c.creadoEn.toDate().toLocaleString()}
+                    Creado: {c.creadoEn?.toDate?.().toLocaleString?.() || ""}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -314,8 +344,8 @@ export default function DiagnosticosPage() {
           realizadas
             .filter(
               (c) =>
-                c.datos.matricula.toLowerCase().includes(searchReal.toLowerCase()) ||
-                c.datos.numeroOR.toLowerCase().includes(searchReal.toLowerCase())
+                (c?.datos?.matricula || "").toLowerCase().includes(searchReal.toLowerCase()) ||
+                (c?.datos?.numeroOR || "").toLowerCase().includes(searchReal.toLowerCase())
             )
             .map((c) => (
               <div
@@ -324,51 +354,50 @@ export default function DiagnosticosPage() {
               >
                 <div>
                   <p className="font-medium">
-                    {c.datos.matricula} — {c.datos.numeroOR}
+                    {c.datos?.matricula} — {c.datos?.numeroOR}
                   </p>
                   <p className="text-sm text-gray-500">
-                    Completado: {c.completadoEn.toDate().toLocaleString()}
+                    Completado: {c.completadoEn?.toDate?.().toLocaleString?.() || ""}
                   </p>
                 </div>
                 <div className="space-x-2">
-                <button
-                  onClick={() => router.push(`/chat-trabajo/${c.id}`)}
-                  className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
-                >
-                  Chat
-                </button>
-                <button
-                  onClick={() => router.push(`/diagnostico-form/${c.checklistId}/detalle`)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Ver
-                </button>
-                <button
-                  onClick={() => router.push(`/diagnostico-form/${c.id}`)}
-                  className="px-4 py-2 bg-pink-500 text-white rounded hover:bg-pink-600"
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={() => handleRejectPresupuesto(c.checklistId, c.id)}
-                  className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                >
-                  Rechazar presupuesto
-                </button>
-                <button
-                  onClick={() => handleFinalizarPresupuesto(c.checklistId, c.id)}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                >
-                  Finalizar
-                </button>
-                <button
-                  onClick={() => handleDelete(c.checklistId, c.id)}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                >
-                  Borrar
-                </button>
-              </div>
-
+                  <button
+                    onClick={() => router.push(`/chat-trabajo/${c.id}`)}
+                    className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
+                  >
+                    Chat
+                  </button>
+                  <button
+                    onClick={() => router.push(`/diagnostico-form/${c.checklistId}/detalle`)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Ver
+                  </button>
+                  <button
+                    onClick={() => router.push(`/diagnostico-form/${c.id}`)}
+                    className="px-4 py-2 bg-pink-500 text-white rounded hover:bg-pink-600"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => handleRejectPresupuesto(c.checklistId, c.id)}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                  >
+                    Rechazar presupuesto
+                  </button>
+                  <button
+                    onClick={() => handleFinalizarPresupuesto(c.checklistId, c.id)}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Finalizar
+                  </button>
+                  <button
+                    onClick={() => handleDelete(c.checklistId, c.id)}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Borrar
+                  </button>
+                </div>
               </div>
             ))
         )}
