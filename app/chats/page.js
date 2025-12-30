@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
   doc,
@@ -13,22 +14,45 @@ import {
   query,
 } from "firebase/firestore";
 
+import { subscribeUserProfile } from "../../lib/userProfile";
+
 export default function ChatsPage() {
   const router = useRouter();
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
+
+  const [userRol, setUserRol] = useState("ADMIN");
+  const [onlyMine, setOnlyMine] = useState(false);
 
   const q = useMemo(
     () => query(collection(db, "chats_trabajos"), orderBy("updatedAt", "desc")),
     []
   );
 
+  // 1) Comprobar sesión
   useEffect(() => {
-    if (!auth.currentUser) {
-      router.replace("/login");
-      return;
-    }
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (!u) router.replace("/login");
+    });
+    return unsub;
+  }, [router]);
+
+  // 2) Rol de usuario (para limitar trabajos a un mecánico)
+  useEffect(() => {
+    if (!user) return;
+    return subscribeUserProfile(user.uid, (p) => {
+      const rol = (p?.rol || "ADMIN").toUpperCase();
+      setUserRol(rol);
+      if (rol === "MECANICO") setOnlyMine(true);
+      else setOnlyMine(false);
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
 
     const unsub = onSnapshot(
       q,
@@ -52,6 +76,8 @@ export default function ChatsPage() {
                   numeroOR: datos.numeroOR || "",
                   nombreCliente: datos.nombreCliente || "",
                   estadoPresupuesto: cq.data()?.estadoPresupuesto || "",
+                  asignadoMecanicoUid: cq.data()?.asignadoMecanicoUid || null,
+                  asignadoMecanicoNombre: cq.data()?.asignadoMecanicoNombre || null,
                 };
               }
             } catch {
@@ -64,12 +90,14 @@ export default function ChatsPage() {
               numeroOR: c.numeroOR || "",
               nombreCliente: c.nombreCliente || "",
               estadoPresupuesto: c.estadoPresupuesto || "",
+              asignadoMecanicoUid: c.asignadoMecanicoUid || null,
+              asignadoMecanicoNombre: c.asignadoMecanicoNombre || null,
             };
           })
         );
 
         // ✅ calcular no-leídos por usuario (reads/{uid}.lastReadAt)
-        const uid = auth.currentUser?.uid;
+        const uid = user?.uid;
 
         if (uid) {
           try {
@@ -117,9 +145,16 @@ export default function ChatsPage() {
     );
 
     return () => unsub();
-  }, [q, router]);
+  }, [q, router, user]);
 
-  const filtered = items.filter((c) => {
+  const visibleItems = useMemo(() => {
+    if (userRol === "MECANICO" && onlyMine && user?.uid) {
+      return items.filter((c) => c.asignadoMecanicoUid === user.uid);
+    }
+    return items;
+  }, [items, onlyMine, user, userRol]);
+
+  const filtered = visibleItems.filter((c) => {
     const hay = [
       c.matricula,
       c.numeroOR,
@@ -165,6 +200,18 @@ export default function ChatsPage() {
           className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300"
         />
       </div>
+
+      {userRol === "MECANICO" ? (
+        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={onlyMine}
+            onChange={(e) => setOnlyMine(e.target.checked)}
+            className="h-4 w-4"
+          />
+          Ver sólo mis trabajos asignados
+        </label>
+      ) : null}
 
       {loading ? (
         <p className="text-gray-600">Cargando…</p>
