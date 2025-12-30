@@ -23,6 +23,14 @@ export default function DocumentosPage() {
   const [categoria, setCategoria] = useState("Presupuestos");
   const [filtroCategoria, setFiltroCategoria] = useState("Todos");
 
+  const CATEGORIAS = [
+    "Presupuestos",
+    "Facturas",
+    "Valoraciones CIA",
+    "Partes de Asistencia",
+    "Otros",
+  ];
+
   const fetchDocs = async () => {
     const q = query(collection(db, "documentos"), orderBy("creadoEn", "desc"));
     const snapshot = await getDocs(q);
@@ -97,10 +105,9 @@ export default function DocumentosPage() {
           onChange={(e) => setCategoria(e.target.value)}
           className="border p-2 rounded"
         >
-          <option>Presupuestos</option>
-          <option>Valoraciones CIA</option>
-          <option>Partes de Asistencia</option>
-          <option>Otros</option>
+          {CATEGORIAS.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
         </select>
 
         <span className="text-sm text-gray-700">
@@ -122,7 +129,7 @@ export default function DocumentosPage() {
 
       {/* Filtro por subcarpeta */}
       <div className="flex flex-wrap gap-2 mb-2">
-        {["Todos", "Presupuestos", "Valoraciones CIA", "Partes de Asistencia", "Otros"].map((cat) => (
+        {["Todos", ...CATEGORIAS].map((cat) => (
           <button
             key={cat}
             onClick={() => setFiltroCategoria(cat)}
