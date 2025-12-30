@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { auth, db } from "../../../lib/firebase";
+import { fetchMecanicos } from "../../../lib/userProfile";
 import {
   doc,
   getDoc,
@@ -36,17 +37,6 @@ function asList(val) {
   return String(val);
 }
 
-function getMecanicoLabel(cuestionario) {
-  // En cuestionarios_cliente se suele guardar la asignación como:
-  // - asignadoMecanicoNombre (nuevo)
-  // - mecanicoNombre (compatibilidad)
-  const nombre =
-    (cuestionario?.asignadoMecanicoNombre || "").toString().trim() ||
-    (cuestionario?.mecanicoNombre || "").toString().trim();
-
-  return nombre ? nombre : "Sin asignar";
-}
-
 // Lee todos los campos del formulario
 function readChecklistData() {
   const fm = new FormData(document.getElementById("diagnosticoForm"));
@@ -66,6 +56,16 @@ export default function DiagnosticoFormPage() {
   const [cuestionario, setCuestionario] = useState({});
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+
+  // Lista de mecánicos para desplegable de "Diagnosticador"
+  const [mecanicos, setMecanicos] = useState([]);
+  const [diagnosticador, setDiagnosticador] = useState("");
+
+  useEffect(() => {
+    fetchMecanicos()
+      .then(setMecanicos)
+      .catch(() => setMecanicos([]));
+  }, []);
 
   // Cargo el cuestionario cliente
   useEffect(() => {
@@ -89,6 +89,8 @@ export default function DiagnosticoFormPage() {
       };
 
       setCuestionario(datosCombinados);
+      // Si ya venía guardado, lo mantenemos; si no, lo dejamos vacío.
+      setDiagnosticador(datosCombinados.diagnosticador || "");
       try {
         const n = datosCombinados.nombreCliente || "";
         document.title = `${datosCombinados.matricula} - ${datosCombinados.numeroOR} - ${n} - Diagnostico`
@@ -170,9 +172,6 @@ export default function DiagnosticoFormPage() {
 
           {/* ✅ NUEVO: Asesor */}
           <Field label="Asesor" value={asList(cuestionario.asesor)} />
-
-          {/* ✅ NUEVO: Mecánico asignado */}
-          <Field label="Mecánico" value={getMecanicoLabel(cuestionario)} />
         </div>
 
         <Section title="Descripción del síntoma">
@@ -288,7 +287,6 @@ export default function DiagnosticoFormPage() {
               { name: "ciclo", label: "Ciclo" },
               { name: "marcaModelo", label: "Marca/Modelo" },
               { name: "fechaCita", label: "Fecha de cita", type: "date" },
-              { name: "diagnosticador", label: "Diagnosticador" },
             ].map(({ name, label, type }) => (
               <div key={name}>
                 <label className="block font-medium">{label}</label>
@@ -300,6 +298,24 @@ export default function DiagnosticoFormPage() {
                 />
               </div>
             ))}
+
+            {/* ✅ NUEVO: Diagnosticador como desplegable (igual que en cuestionario) */}
+            <div>
+              <label className="block font-medium">Diagnosticador</label>
+              <select
+                name="diagnosticador"
+                value={diagnosticador}
+                onChange={(e) => setDiagnosticador(e.target.value)}
+                className="mt-1 w-full border-2 border-gray-300 px-2 py-1 rounded focus:border-red-500"
+              >
+                <option value="">Sin asignar</option>
+                {mecanicos.map((m) => (
+                  <option key={m.uid} value={m.nombre}>
+                    {m.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* ✅ Hidden para que también se guarden en checklists.datos */}
