@@ -12,6 +12,7 @@ import {
   orderBy,
   deleteDoc,
   updateDoc,
+  getDoc,
   doc,
 } from "firebase/firestore";
 
@@ -27,6 +28,9 @@ export default function DiagnosticosPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // ✅ Mapa trabajoId -> tiene mensajes no leídos
+  const [unreadMap, setUnreadMap] = useState({});
 
   // ✅ Guardamos listas "completas" (sin filtrar por mecánico)
   const [pendientesAll, setPendientesAll] = useState([]);
@@ -124,6 +128,63 @@ export default function DiagnosticosPage() {
       setRealizadasAll(real);
     })();
   }, [user]);
+
+  // ✅ Detectar chats con mensajes no leídos (badge "NUEVO")
+  useEffect(() => {
+    if (!user) return;
+
+    let alive = true;
+
+    (async () => {
+      const uid = user.uid;
+      const ids = Array.from(
+        new Set([
+          ...(pendientesAll || []).map((c) => String(c.id)),
+          ...(realizadasAll || []).map((c) => String(c.id)),
+        ])
+      );
+
+      const results = await Promise.all(
+        ids.map(async (trabajoId) => {
+          try {
+            const chatSnap = await getDoc(doc(db, "chats_trabajos", trabajoId));
+            if (!chatSnap.exists()) return [trabajoId, false];
+
+            const chat = chatSnap.data() || {};
+            const updatedMs =
+              chat.updatedAt?.toMillis?.() ||
+              (chat.updatedAt?.seconds ? chat.updatedAt.seconds * 1000 : 0) ||
+              0;
+
+            const readSnap = await getDoc(
+              doc(db, "chats_trabajos", trabajoId, "reads", uid)
+            );
+            const lastReadMs = readSnap.exists()
+              ? readSnap.data()?.lastReadAt?.toMillis?.() || 0
+              : 0;
+
+            const unread =
+              updatedMs > lastReadMs &&
+              chat.lastSenderUid &&
+              chat.lastSenderUid !== uid;
+
+            return [trabajoId, !!unread];
+          } catch {
+            return [trabajoId, false];
+          }
+        })
+      );
+
+      if (!alive) return;
+      const map = {};
+      results.forEach(([id, v]) => (map[id] = v));
+      setUnreadMap(map);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [pendientesAll, realizadasAll, user]);
 
   // ✅ Filtrado EN MEMORIA (sin refetch): aquí desaparece el bug del click rápido
   const pendientes = useMemo(() => {
@@ -298,8 +359,15 @@ export default function DiagnosticosPage() {
                 className="flex justify-between items-center bg-white p-4 mb-2 rounded shadow"
               >
                 <div>
-                  <p className="font-medium">
-                    {c.datos?.matricula} — {c.datos?.numeroOR}
+                  <p className="font-medium flex items-center flex-wrap gap-2">
+                    <span>
+                      {c.datos?.matricula} — {c.datos?.numeroOR}
+                    </span>
+                    {unreadMap?.[c.id] ? (
+                      <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">
+                        ● NUEVO
+                      </span>
+                    ) : null}
                   </p>
                   <p className="text-sm text-gray-500">
                     Creado: {c.creadoEn?.toDate?.().toLocaleString?.() || ""}
@@ -353,8 +421,15 @@ export default function DiagnosticosPage() {
                 className="flex justify-between items-center bg-green-100 p-4 mb-2 rounded"
               >
                 <div>
-                  <p className="font-medium">
-                    {c.datos?.matricula} — {c.datos?.numeroOR}
+                  <p className="font-medium flex items-center flex-wrap gap-2">
+                    <span>
+                      {c.datos?.matricula} — {c.datos?.numeroOR}
+                    </span>
+                    {unreadMap?.[c.id] ? (
+                      <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">
+                        ● NUEVO
+                      </span>
+                    ) : null}
                   </p>
                   <p className="text-sm text-gray-500">
                     Completado: {c.completadoEn?.toDate?.().toLocaleString?.() || ""}
