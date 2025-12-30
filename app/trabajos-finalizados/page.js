@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import {
@@ -31,6 +31,23 @@ export default function TrabajosFinalizadosPage() {
   const [userRol, setUserRol] = useState("ADMIN");
   const [onlyMine, setOnlyMine] = useState(true);
 
+  // ✅ Evita que el rol pise el checkbox tras que el usuario haga click
+  const didInitOnlyMine = useRef(false);
+
+  const matchTrabajo = (item, term) => {
+    const t = (term || "").toLowerCase();
+    return (
+      (item?.datos?.matricula || "").toLowerCase().includes(t) ||
+      (item?.datos?.numeroOR || "").toLowerCase().includes(t) ||
+      (item?.datos?.nombreCliente || "").toLowerCase().includes(t)
+    );
+  };
+
+  const trabajoLabel = (item) =>
+    `${item?.datos?.matricula || ""} — ${item?.datos?.numeroOR || ""} — ${
+      item?.datos?.nombreCliente || ""
+    }`;
+
   useEffect(() => {
     if (!auth.currentUser) {
       router.replace("/login");
@@ -40,8 +57,19 @@ export default function TrabajosFinalizadosPage() {
     const unsub = subscribeUserProfile(u.uid, (p) => {
       const rol = (p?.rol || "ADMIN").toUpperCase();
       setUserRol(rol);
-      if (rol !== "MECANICO") setOnlyMine(false);
-      else setOnlyMine(true);
+
+      // Si NO es mecánico, siempre se desactiva (no tiene sentido el filtro)
+      if (rol !== "MECANICO") {
+        didInitOnlyMine.current = true;
+        setOnlyMine(false);
+        return;
+      }
+
+      // Si es mecánico, sólo poner el valor por defecto 1 vez
+      if (!didInitOnlyMine.current) {
+        didInitOnlyMine.current = true;
+        setOnlyMine(true);
+      }
     });
     (async () => {
       const [cqSnap, chSnap, rSnap] = await Promise.all([
@@ -120,20 +148,19 @@ export default function TrabajosFinalizadosPage() {
         <div className="relative mb-4">
           <input
             type="text"
-            placeholder="🔍 Buscar matrícula o número de orden..."
+            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
             value={searchCq}
             onChange={e => setSearchCq(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300"
           />
         </div>
-        {cuestionarios.filter(c => c.id.toLowerCase().includes(searchCq.toLowerCase())).length === 0 ? (
+        {cuestionarios.filter(c => matchTrabajo(c, searchCq)).length === 0 ? (
           <p className="text-gray-600">No hay cuestionarios finalizados.</p>
         ) : (
-          cuestionarios.filter(c => c.id.toLowerCase().includes(searchCq.toLowerCase())).map(c => {
-            const [mat, or] = c.id.split("-");
+          cuestionarios.filter(c => matchTrabajo(c, searchCq)).map(c => {
             return (
               <div key={c.id} className="flex justify-between items-center bg-green-100 p-4 mb-2 rounded">
-                <p className="font-medium">{mat} — {or}</p>
+                <p className="font-medium">{trabajoLabel(c)}</p>
                 <div className="space-x-2">
                   <button
                     onClick={() => router.push(`/chat-trabajo/${c.id}`)}
@@ -159,20 +186,19 @@ export default function TrabajosFinalizadosPage() {
         <div className="relative mb-4">
           <input
             type="text"
-            placeholder="🔍 Buscar matrícula o número de orden..."
+            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
             value={searchCh}
             onChange={e => setSearchCh(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300"
           />
         </div>
-        {checklists.filter(c => c.id.toLowerCase().includes(searchCh.toLowerCase())).length === 0 ? (
+        {checklists.filter(c => matchTrabajo(c, searchCh)).length === 0 ? (
           <p className="text-gray-600">No hay checklists finalizadas.</p>
         ) : (
-          checklists.filter(c => c.id.toLowerCase().includes(searchCh.toLowerCase())).map(c => {
-            const [mat, or] = c.id.split("-");
+          checklists.filter(c => matchTrabajo(c, searchCh)).map(c => {
             return (
               <div key={c.id} className="flex justify-between items-center bg-green-100 p-4 mb-2 rounded">
-                <p className="font-medium">{mat} — {or}</p>
+                <p className="font-medium">{trabajoLabel(c)}</p>
                 <div className="space-x-2">
                   <button
                     onClick={() => router.push(`/chat-trabajo/${c.id}`)}
@@ -198,20 +224,19 @@ export default function TrabajosFinalizadosPage() {
         <div className="relative mb-4">
           <input
             type="text"
-            placeholder="🔍 Buscar matrícula o número de orden..."
+            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
             value={searchR}
             onChange={e => setSearchR(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300"
           />
         </div>
-        {recambios.filter(c => c.id.toLowerCase().includes(searchR.toLowerCase())).length === 0 ? (
+        {recambios.filter(c => matchTrabajo(c, searchR)).length === 0 ? (
           <p className="text-gray-600">No hay recambios finalizados.</p>
         ) : (
-          recambios.filter(c => c.id.toLowerCase().includes(searchR.toLowerCase())).map(c => {
-            const [mat, or] = c.id.split("-");
+          recambios.filter(c => matchTrabajo(c, searchR)).map(c => {
             return (
               <div key={c.id} className="flex justify-between items-center bg-green-100 p-4 mb-2 rounded">
-                <p className="font-medium">{mat} — {or}</p>
+                <p className="font-medium">{trabajoLabel(c)}</p>
                 <div className="space-x-2">
                   <button
                     onClick={() => router.push(`/chat-trabajo/${c.id}`)}
