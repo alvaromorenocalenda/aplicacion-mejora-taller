@@ -365,7 +365,7 @@ export default function DiagnosticosPage() {
                     </span>
                     {unreadMap?.[c.id] ? (
                       <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">
-                        ● NUEVO
+                        ● NUEVO MENSAJE
                       </span>
                     ) : null}
                   </p>
