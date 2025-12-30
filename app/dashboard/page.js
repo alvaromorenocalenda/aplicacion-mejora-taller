@@ -13,6 +13,7 @@ import {
   onSnapshot,
   deleteDoc,
   doc,
+  getDoc,
   updateDoc,
   setDoc,
 } from "firebase/firestore";
@@ -32,6 +33,9 @@ export default function DashboardPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // ✅ Mapa trabajoId -> tiene mensajes no leídos
+  const [unreadMap, setUnreadMap] = useState({});
 
   const [userRol, setUserRol] = useState("ADMIN");
   const [onlyMine, setOnlyMine] = useState(true);
@@ -111,6 +115,58 @@ export default function DashboardPage() {
         });
     }
   }, [user]);
+
+  // ✅ Detectar chats con mensajes no leídos (badge "NUEVO")
+  useEffect(() => {
+    if (!user) return;
+
+    let alive = true;
+
+    (async () => {
+      const uid = user.uid;
+
+      const results = await Promise.all(
+        (items || []).map(async (it) => {
+          const trabajoId = String(it.id);
+          try {
+            const chatSnap = await getDoc(doc(db, "chats_trabajos", trabajoId));
+            if (!chatSnap.exists()) return [trabajoId, false];
+
+            const chat = chatSnap.data() || {};
+            const updatedMs =
+              chat.updatedAt?.toMillis?.() ||
+              (chat.updatedAt?.seconds ? chat.updatedAt.seconds * 1000 : 0) ||
+              0;
+
+            const readSnap = await getDoc(
+              doc(db, "chats_trabajos", trabajoId, "reads", uid)
+            );
+            const lastReadMs = readSnap.exists()
+              ? readSnap.data()?.lastReadAt?.toMillis?.() || 0
+              : 0;
+
+            const unread =
+              updatedMs > lastReadMs &&
+              chat.lastSenderUid &&
+              chat.lastSenderUid !== uid;
+
+            return [trabajoId, !!unread];
+          } catch {
+            return [trabajoId, false];
+          }
+        })
+      );
+
+      if (!alive) return;
+      const map = {};
+      results.forEach(([id, v]) => (map[id] = v));
+      setUnreadMap(map);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [items, user]);
 
   // 2) Suscribirse sólo a los cuestionarios con presupuesto PENDIENTE
   useEffect(() => {
@@ -414,8 +470,15 @@ export default function DashboardPage() {
               className="flex justify-between items-center bg-white p-4 rounded shadow"
             >
               <div>
-                <p className="font-medium">
-                  {datos.matricula} — {datos.numeroOR} — {datos.nombreCliente || ""}
+                <p className="font-medium flex items-center flex-wrap gap-2">
+                  <span>
+                    {datos.matricula} — {datos.numeroOR} — {datos.nombreCliente || ""}
+                  </span>
+                  {unreadMap?.[id] ? (
+                    <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">
+                      ● NUEVO
+                    </span>
+                  ) : null}
                 </p>
                 <p className="text-sm text-gray-500">
                   Creado: {creadoEn.toDate().toLocaleString()}
