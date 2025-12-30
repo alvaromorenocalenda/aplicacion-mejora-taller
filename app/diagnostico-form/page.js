@@ -337,7 +337,7 @@ export default function DiagnosticosPage() {
         <div className="relative mb-4">
           <input
             type="text"
-            placeholder="🔍 Buscar matrícula o número de orden..."
+            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
             value={searchPend}
             onChange={(e) => setSearchPend(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300"
@@ -349,9 +349,14 @@ export default function DiagnosticosPage() {
         ) : (
           pendientes
             .filter(
-              (c) =>
-                (c?.datos?.matricula || "").toLowerCase().includes(searchPend.toLowerCase()) ||
-                (c?.datos?.numeroOR || "").toLowerCase().includes(searchPend.toLowerCase())
+              (c) => {
+                const t = (searchPend || "").toLowerCase();
+                return (
+                  (c?.datos?.matricula || "").toLowerCase().includes(t) ||
+                  (c?.datos?.numeroOR || "").toLowerCase().includes(t) ||
+                  (c?.datos?.nombreCliente || "").toLowerCase().includes(t)
+                );
+              }
             )
             .map((c) => (
               <div
@@ -361,7 +366,7 @@ export default function DiagnosticosPage() {
                 <div>
                   <p className="font-medium flex items-center flex-wrap gap-2">
                     <span>
-                      {c.datos?.matricula} — {c.datos?.numeroOR}
+                      {c.datos?.matricula} — {c.datos?.numeroOR} — {c.datos?.nombreCliente || ""}
                     </span>
                     {unreadMap?.[c.id] ? (
                       <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">
@@ -399,7 +404,7 @@ export default function DiagnosticosPage() {
         <div className="relative mb-4">
           <input
             type="text"
-            placeholder="🔍 Buscar matrícula o número de orden..."
+            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
             value={searchReal}
             onChange={(e) => setSearchReal(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300"
@@ -411,9 +416,14 @@ export default function DiagnosticosPage() {
         ) : (
           realizadas
             .filter(
-              (c) =>
-                (c?.datos?.matricula || "").toLowerCase().includes(searchReal.toLowerCase()) ||
-                (c?.datos?.numeroOR || "").toLowerCase().includes(searchReal.toLowerCase())
+              (c) => {
+                const t = (searchReal || "").toLowerCase();
+                return (
+                  (c?.datos?.matricula || "").toLowerCase().includes(t) ||
+                  (c?.datos?.numeroOR || "").toLowerCase().includes(t) ||
+                  (c?.datos?.nombreCliente || "").toLowerCase().includes(t)
+                );
+              }
             )
             .map((c) => (
               <div
@@ -423,7 +433,7 @@ export default function DiagnosticosPage() {
                 <div>
                   <p className="font-medium flex items-center flex-wrap gap-2">
                     <span>
-                      {c.datos?.matricula} — {c.datos?.numeroOR}
+                      {c.datos?.matricula} — {c.datos?.numeroOR} — {c.datos?.nombreCliente || ""}
                     </span>
                     {unreadMap?.[c.id] ? (
                       <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">
