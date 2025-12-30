@@ -36,6 +36,17 @@ function asList(val) {
   return String(val);
 }
 
+function getMecanicoLabel(cuestionario) {
+  // En cuestionarios_cliente se suele guardar la asignación como:
+  // - asignadoMecanicoNombre (nuevo)
+  // - mecanicoNombre (compatibilidad)
+  const nombre =
+    (cuestionario?.asignadoMecanicoNombre || "").toString().trim() ||
+    (cuestionario?.mecanicoNombre || "").toString().trim();
+
+  return nombre ? nombre : "Sin asignar";
+}
+
 // Lee todos los campos del formulario
 function readChecklistData() {
   const fm = new FormData(document.getElementById("diagnosticoForm"));
@@ -159,6 +170,9 @@ export default function DiagnosticoFormPage() {
 
           {/* ✅ NUEVO: Asesor */}
           <Field label="Asesor" value={asList(cuestionario.asesor)} />
+
+          {/* ✅ NUEVO: Mecánico asignado */}
+          <Field label="Mecánico" value={getMecanicoLabel(cuestionario)} />
         </div>
 
         <Section title="Descripción del síntoma">
