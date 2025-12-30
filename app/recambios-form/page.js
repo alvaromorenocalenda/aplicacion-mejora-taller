@@ -11,6 +11,7 @@ import {
   getDocs,
   orderBy,
   doc,
+  getDoc,
   deleteDoc,
   updateDoc,
 } from "firebase/firestore";
@@ -27,6 +28,9 @@ export default function RecambiosListPage() {
 
   const [user, setUser] = useState(null);
   const [userRol, setUserRol] = useState("ADMIN");
+
+  // ✅ Mapa trabajoId -> tiene mensajes no leídos
+  const [unreadMap, setUnreadMap] = useState({});
 
   // ✅ Solo se inicializa una vez según rol (para no pisarte al hacer click)
   const didInitOnlyMine = useRef(false);
@@ -154,6 +158,66 @@ export default function RecambiosListPage() {
       setRealizadosAll(real);
     })();
   }, [user]);
+
+  // ✅ Detectar chats con mensajes no leídos (badge "NUEVO")
+  useEffect(() => {
+    if (!user) return;
+
+    let alive = true;
+
+    (async () => {
+      const uid = user.uid;
+
+      const ids = Array.from(
+        new Set(
+          [
+            ...(pendientesAll || []).map((c) => String(c.cuestionarioId || c.id)),
+            ...(realizadosAll || []).map((c) => String(c.cuestionarioId || c.id)),
+          ].filter(Boolean)
+        )
+      );
+
+      const results = await Promise.all(
+        ids.map(async (trabajoId) => {
+          try {
+            const chatSnap = await getDoc(doc(db, "chats_trabajos", trabajoId));
+            if (!chatSnap.exists()) return [trabajoId, false];
+
+            const chat = chatSnap.data() || {};
+            const updatedMs =
+              chat.updatedAt?.toMillis?.() ||
+              (chat.updatedAt?.seconds ? chat.updatedAt.seconds * 1000 : 0) ||
+              0;
+
+            const readSnap = await getDoc(
+              doc(db, "chats_trabajos", trabajoId, "reads", uid)
+            );
+            const lastReadMs = readSnap.exists()
+              ? readSnap.data()?.lastReadAt?.toMillis?.() || 0
+              : 0;
+
+            const unread =
+              updatedMs > lastReadMs &&
+              chat.lastSenderUid &&
+              chat.lastSenderUid !== uid;
+
+            return [trabajoId, !!unread];
+          } catch {
+            return [trabajoId, false];
+          }
+        })
+      );
+
+      if (!alive) return;
+      const map = {};
+      results.forEach(([id, v]) => (map[id] = v));
+      setUnreadMap(map);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [pendientesAll, realizadosAll, user]);
 
   // ✅ Filtrar EN MEMORIA (a prueba de clicks rápidos)
   const pendientes = useMemo(() => {
@@ -373,8 +437,15 @@ export default function RecambiosListPage() {
           >
             <div className="flex-grow">
               <div className="flex items-center gap-3 flex-wrap">
-                <p className="font-medium">
-                  {c?.datos?.matricula} — {c?.datos?.numeroOR}
+                <p className="font-medium flex items-center flex-wrap gap-2">
+                  <span>
+                    {c?.datos?.matricula} — {c?.datos?.numeroOR}
+                  </span>
+                  {unreadMap?.[String(c.cuestionarioId || c.id)] ? (
+                    <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">
+                      ● NUEVO
+                    </span>
+                  ) : null}
                 </p>
                 <span
                   className={`px-3 py-1 rounded text-xs font-semibold ${estadoBadgeClass(
@@ -430,8 +501,15 @@ export default function RecambiosListPage() {
           <div key={c.id} className="flex items-center bg-green-100 p-4 mb-2 rounded">
             <div className="flex-grow">
               <div className="flex items-center gap-3 flex-wrap">
-                <p className="font-medium">
-                  {c?.datos?.matricula} — {c?.datos?.numeroOR}
+                <p className="font-medium flex items-center flex-wrap gap-2">
+                  <span>
+                    {c?.datos?.matricula} — {c?.datos?.numeroOR}
+                  </span>
+                  {unreadMap?.[String(c.cuestionarioId || c.id)] ? (
+                    <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">
+                      ● NUEVO
+                    </span>
+                  ) : null}
                 </p>
                 <span
                   className={`px-3 py-1 rounded text-xs font-semibold ${estadoBadgeClass(
