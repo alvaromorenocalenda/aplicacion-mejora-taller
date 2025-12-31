@@ -1,6 +1,7 @@
 // app/layout.js
 import "./globals.css";
 import RegisterServiceWorker from "@/components/RegisterServiceWorker";
+import ForegroundFCMListener from "@/components/ForegroundFCMListener";
 
 export const metadata = {
   title: "Mejora Taller",
@@ -13,9 +14,9 @@ export default function RootLayout({ children }) {
       <head />
       <body className="bg-gray-100 text-gray-800 antialiased">
         <RegisterServiceWorker />
+        <ForegroundFCMListener />
         {children}
       </body>
     </html>
   );
 }
-
