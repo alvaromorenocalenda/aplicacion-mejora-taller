@@ -5,56 +5,65 @@ import { getMessaging, isSupported, onMessage } from "firebase/messaging";
 import { firebaseApp } from "@/lib/firebase";
 
 /**
- * Escucha mensajes FCM cuando la app está ABIERTA (foreground).
+ * NOTIFICACIONES EN FOREGROUND (app abierta)
  *
- * Con DATA-ONLY, cuando la pestaña está activa, el Service Worker no recibe
- * el evento `push`, así que no se muestra notificación. Esto lo soluciona
- * escuchando con `onMessage()` y mostrando una notificación manualmente.
+ * En Web Push / FCM:
+ * - Si la pestaña está en background o cerrada, el Service Worker gestiona el push ✅
+ * - Si la web está abierta y activa, el Service Worker NO recibe el push,
+ *   así que hay que escuchar con onMessage() y mostrar la notificación manualmente ✅
  */
 export default function ForegroundFCMListener() {
   useEffect(() => {
     let unsubscribe;
 
     (async () => {
-      // Evitar SSR / entornos sin Notification
       if (typeof window === "undefined") return;
       if (typeof Notification === "undefined") return;
 
       const supported = await isSupported().catch(() => false);
       if (!supported) return;
 
+      // Si aún no hay permiso, no lo pedimos aquí (para no spamear prompts).
+      if (Notification.permission !== "granted") return;
+
       const messaging = getMessaging(firebaseApp);
 
       unsubscribe = onMessage(messaging, async (payload) => {
         try {
           const data = payload?.data || {};
+
           const title =
             data.title || payload?.notification?.title || "Nuevo mensaje";
-          const body = data.body || payload?.notification?.body || "";
+          const body =
+            data.body || payload?.notification?.body || "Tienes un mensaje";
           const url = data.url || "/";
+
+          // Si usas tag por chat, Android a veces "reemplaza" y no suena.
+          // renotify:true fuerza que vuelva a sonar aunque reemplace.
           const tag =
             data.tag || (data.chatId ? `chat-${data.chatId}` : undefined);
 
-          // Si el usuario aún no dio permisos, no molestamos pidiéndolos aquí.
-          if (Notification.permission !== "granted") return;
-
-          // Intentar mostrar con el SW (mejor comportamiento + click handler centralizado)
+          // Preferimos mostrar con el SW para mantener el click handler (notificationclick)
+          // centralizado en firebase-messaging-sw.js.
           let swReg =
             (await navigator.serviceWorker.getRegistration(
               "/firebase-messaging-sw.js"
             )) || (await navigator.serviceWorker.getRegistration());
 
+          const options = {
+            body,
+            tag,
+            renotify: true,
+            data: { url },
+          };
+
           if (swReg?.showNotification) {
-            swReg.showNotification(title, {
-              body,
-              tag,
-              data: { url },
-            });
+            await swReg.showNotification(title, options);
             return;
           }
 
-          // Fallback: Notification directa
-          const n = new Notification(title, { body, tag });
+          // Fallback si no hay SW (raro, pero por seguridad)
+          const n = new Notification(title, options);
           n.onclick = () => {
             try {
               window.focus();
