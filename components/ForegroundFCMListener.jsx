@@ -4,27 +4,6 @@ import { useEffect } from "react";
 import { getMessaging, isSupported, onMessage } from "firebase/messaging";
 import { firebaseApp } from "@/lib/firebase";
 
-function shouldPlaySound() {
-  try {
-    return localStorage.getItem("notif_sound_enabled") === "1";
-  } catch {
-    return false;
-  }
-}
-
-async function playSound() {
-  try {
-    if (!shouldPlaySound()) return;
-
-    const audio = new Audio("/sounds/notify.mp3");
-    audio.volume = 1;
-    await audio.play();
-  } catch (e) {
-    // Si el navegador bloquea audio, no rompemos nada
-    console.warn("Audio bloqueado/no disponible:", e);
-  }
-}
-
 export default function ForegroundFCMListener() {
   useEffect(() => {
     let unsubscribe;
@@ -39,18 +18,15 @@ export default function ForegroundFCMListener() {
       const messaging = getMessaging(firebaseApp);
 
       unsubscribe = onMessage(messaging, async (payload) => {
-        const data = payload?.data || {};
-        const title =
-          data.title || payload?.notification?.title || "Nuevo mensaje";
-        const body =
-          data.body || payload?.notification?.body || "Tienes un mensaje";
-        const url = data.url || "/";
-
-        // 1) SONIDO EN FOREGROUND (lo fiable en tablets)
-        await playSound();
-
-        // 2) NOTIFICACIÓN VISUAL TAMBIÉN (si hay permiso)
         try {
+          const data = payload?.data || {};
+
+          const title =
+            data.title || payload?.notification?.title || "Nuevo mensaje";
+          const body =
+            data.body || payload?.notification?.body || "Tienes un mensaje";
+          const url = data.url || "/";
+
           if (Notification.permission !== "granted") return;
 
           const tag =
