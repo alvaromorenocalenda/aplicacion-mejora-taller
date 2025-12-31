@@ -28,6 +28,10 @@ self.addEventListener("push", (event) => {
   const options = {
     body,
     tag, // agrupa/reemplaza notificaciones del mismo chat
+    // 🔊 IMPORTANTE (Android/Tablet): si se reemplaza por el mismo 'tag',
+    // por defecto muchas veces NO vuelve a sonar. Con renotify=true forzamos
+    // a que vuelva a notificar aunque se actualice la misma notificación.
+    renotify: true,
     data: { url },
     // icon: "/icon-192.png",
     // badge: "/badge-72.png",
