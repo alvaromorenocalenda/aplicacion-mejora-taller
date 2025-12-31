@@ -1,7 +1,7 @@
-// app/layout.js
 import "./globals.css";
 import RegisterServiceWorker from "@/components/RegisterServiceWorker";
 import ForegroundFCMListener from "@/components/ForegroundFCMListener";
+import EnableNotificationSound from "@/components/EnableNotificationSound";
 
 export const metadata = {
   title: "Mejora Taller",
@@ -11,10 +11,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="es">
-      <head />
       <body className="bg-gray-100 text-gray-800 antialiased">
         <RegisterServiceWorker />
         <ForegroundFCMListener />
+        <EnableNotificationSound />
         {children}
       </body>
     </html>
