@@ -73,32 +73,33 @@ export default function RecambiosForm({
                   {/* Cabecera fila 1 */}
                   <tr className="bg-[#B3D9FF]">
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Letra</th>
-                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Referencia anterior</th>
-                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] w-[120px]">Unidades</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] min-w-[320px]">Referencia anterior</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] w-[90px]">Unidades</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Marca anterior</th>
-                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] min-w-[260px]">Descripción</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] min-w-[220px]">Descripción</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Diagnosticador</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Observaciones</th>
                   </tr>
                   {/* Inputs fila 1 */}
                   <tr className={fondo}>
                     <td className="border px-2 py-1 text-center align-middle">{letra}</td>
-                    <td className="border px-2 py-1">
+                    <td className="border px-2 py-1 min-w-[320px]">
                       <input
                         type="text"
                         value={e.referenciaAnterior}
                         onChange={ev => handleChange(idx, "referenciaAnterior", ev.target.value)}
-                        className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm"
+                        className="w-full min-w-[320px] bg-[#E3F2FD] px-2 py-1 rounded text-sm"
                       />
                     </td>
-                    <td className="border px-2 py-1 w-[120px]">
+                    <td className="border px-2 py-1 w-[90px]">
                       <input
                         type="number"
                         inputMode="numeric"
                         min={0}
+                        max={999}
                         value={e.unidadesAnterior ?? ""}
                         onChange={ev => handleChange(idx, "unidadesAnterior", ev.target.value)}
-                        className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm"
+                        className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm text-center"
                       />
                     </td>
                     <td className="border px-2 py-1">
@@ -109,12 +110,12 @@ export default function RecambiosForm({
                         className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm"
                       />
                     </td>
-                    <td className="border px-2 py-1 min-w-[260px]">
+                    <td className="border px-2 py-1 min-w-[220px]">
                       <input
                         type="text"
                         value={e.descripcion}
                         onChange={ev => handleChange(idx, "descripcion", ev.target.value)}
-                        className="w-full min-w-[260px] bg-[#E3F2FD] px-2 py-1 rounded text-sm"
+                        className="w-full min-w-[220px] bg-[#E3F2FD] px-2 py-1 rounded text-sm"
                       />
                     </td>
                     <td className="border px-2 py-1">
@@ -138,11 +139,11 @@ export default function RecambiosForm({
                   {/* Cabecera fila 2 */}
                   <tr className="bg-[#D3D3D3]">
                     <th></th>
-                    <th className="p-3 text-center text-sm font-semibold text-[#333]">Referencia Tramitada</th>
-                    <th className="p-3 text-center text-sm font-semibold text-[#333] w-[120px]">Unidades</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#333] min-w-[320px]">Referencia Tramitada</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#333] w-[90px]">Unidades</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Fecha Pedido</th>
                     {/* Proveedor más estrecho (Descripción se mantiene igual) */}
-                    <th className="p-3 text-center text-sm font-semibold text-[#333] w-[180px] min-w-[160px]">Proveedor</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#333] w-[160px] min-w-[140px]">Proveedor</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Transporte</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Fecha prevista de llegada</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Fecha Llegada</th>
@@ -153,22 +154,23 @@ export default function RecambiosForm({
                   {/* Inputs fila 2 */}
                   <tr className={fondo}>
                     <td></td>
-                    <td className="border px-2 py-1">
+                    <td className="border px-2 py-1 min-w-[320px]">
                       <input
                         type="text"
                         value={e.referenciaTramitada}
                         onChange={ev => handleChange(idx, "referenciaTramitada", ev.target.value)}
-                        className="w-full bg-[#F0F0F0] px-2 py-1 rounded text-sm"
+                        className="w-full min-w-[320px] bg-[#F0F0F0] px-2 py-1 rounded text-sm"
                       />
                     </td>
-                    <td className="border px-2 py-1 w-[120px]">
+                    <td className="border px-2 py-1 w-[90px]">
                       <input
                         type="number"
                         inputMode="numeric"
                         min={0}
+                        max={999}
                         value={e.unidadesTramitadas ?? ""}
                         onChange={ev => handleChange(idx, "unidadesTramitadas", ev.target.value)}
-                        className="w-full bg-[#F0F0F0] px-2 py-1 rounded text-sm"
+                        className="w-full bg-[#F0F0F0] px-2 py-1 rounded text-sm text-center"
                       />
                     </td>
                     <td className="border px-2 py-1">
@@ -179,7 +181,7 @@ export default function RecambiosForm({
                         className="w-full bg-[#F0F0F0] px-2 py-1 rounded text-sm"
                       />
                     </td>
-                    <td className="border px-2 py-1 w-[180px] min-w-[160px]">
+                    <td className="border px-2 py-1 w-[160px] min-w-[140px]">
                       <input
                         type="text"
                         value={e.proveedor}
