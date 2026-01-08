@@ -64,11 +64,13 @@ return (
           <tr className="bg-blue-200 text-gray-900 font-semibold">
             <th className="px-4 py-2">Letra</th>
             <th className="px-4 py-2">Referencia anterior</th>
+            <th className="px-4 py-2">Unidades (ant.)</th>
             <th className="px-4 py-2">Marca anterior</th>
             <th className="px-4 py-2">Descripción</th>
             <th className="px-4 py-2">Diagnosticador</th>
             <th className="px-4 py-2 border-r-4 border-white">Observaciones</th>
             <th className="px-4 py-2">Referencia tramitada</th>
+            <th className="px-4 py-2">Unidades (tram.)</th>
             <th className="px-4 py-2">Fecha pedido</th>
             {/* Proveedor más estrecho (Descripción se mantiene igual) */}
             <th className="px-4 py-2 w-[180px] min-w-[160px]">Proveedor</th>
@@ -87,6 +89,7 @@ return (
             >
               <td className="px-4 py-2">{String.fromCharCode(65 + idx)}</td>
               <td className="px-4 py-2">{e.referenciaAnterior || "—"}</td>
+              <td className="px-4 py-2">{e.unidadesAnterior ?? "—"}</td>
               <td className="px-4 py-2">{e.marcaAnterior || "—"}</td>
               <td className="px-4 py-2">{e.descripcion || "—"}</td>
               <td className="px-4 py-2">{e.diagnosticador || "—"}</td>
@@ -94,6 +97,7 @@ return (
                 {e.observacionesSup || "—"}
               </td>
               <td className="px-4 py-2">{e.referenciaTramitada || "—"}</td>
+              <td className="px-4 py-2">{e.unidadesTramitadas ?? "—"}</td>
               <td className="px-4 py-2">{e.fechaPedido || "—"}</td>
               <td className="px-4 py-2 w-[180px] min-w-[160px]">{e.proveedor || "—"}</td>
               <td className="px-4 py-2">{e.transporte || "—"}</td>
