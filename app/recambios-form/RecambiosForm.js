@@ -29,12 +29,15 @@ export default function RecambiosForm({
       ...entries,
       {
         referenciaAnterior: "",
+        // Unidades de la parte superior (lo que había / referencia anterior)
+        unidadesAnterior: "",
         marcaAnterior: "",
         descripcion: "",
-        unidades: "1",
         diagnosticador: "",
         observacionesSup: "",
         referenciaTramitada: "",
+        // Unidades de la parte inferior (lo que se tramita/pide)
+        unidadesTramitadas: "",
         fechaPedido: "",
         proveedor: "",
         transporte: "",
@@ -70,23 +73,31 @@ export default function RecambiosForm({
                   {/* Cabecera fila 1 */}
                   <tr className="bg-[#B3D9FF]">
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Letra</th>
-                    {/* Referencia más ancha */}
-                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] w-[260px] min-w-[240px]">Referencia anterior</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Referencia anterior</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] w-[120px]">Unidades</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Marca anterior</th>
-                    {/* Descripción un poco más estrecha para ganar espacio a Referencia */}
-                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] w-[280px] min-w-[260px]">Descripción</th>
-                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] w-[110px] min-w-[90px]">Unidades</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F] min-w-[260px]">Descripción</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Diagnosticador</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#1E3A5F]">Observaciones</th>
                   </tr>
                   {/* Inputs fila 1 */}
                   <tr className={fondo}>
                     <td className="border px-2 py-1 text-center align-middle">{letra}</td>
-                    <td className="border px-2 py-1 w-[260px] min-w-[240px]">
+                    <td className="border px-2 py-1">
                       <input
                         type="text"
                         value={e.referenciaAnterior}
                         onChange={ev => handleChange(idx, "referenciaAnterior", ev.target.value)}
+                        className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm"
+                      />
+                    </td>
+                    <td className="border px-2 py-1 w-[120px]">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        value={e.unidadesAnterior ?? ""}
+                        onChange={ev => handleChange(idx, "unidadesAnterior", ev.target.value)}
                         className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm"
                       />
                     </td>
@@ -98,21 +109,12 @@ export default function RecambiosForm({
                         className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm"
                       />
                     </td>
-                    <td className="border px-2 py-1 w-[280px] min-w-[260px]">
+                    <td className="border px-2 py-1 min-w-[260px]">
                       <input
                         type="text"
                         value={e.descripcion}
                         onChange={ev => handleChange(idx, "descripcion", ev.target.value)}
-                        className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm"
-                      />
-                    </td>
-                    <td className="border px-2 py-1 w-[110px] min-w-[90px]">
-                      <input
-                        type="number"
-                        min="1"
-                        value={e.unidades ?? ""}
-                        onChange={ev => handleChange(idx, "unidades", ev.target.value)}
-                        className="w-full bg-[#E3F2FD] px-2 py-1 rounded text-sm"
+                        className="w-full min-w-[260px] bg-[#E3F2FD] px-2 py-1 rounded text-sm"
                       />
                     </td>
                     <td className="border px-2 py-1">
@@ -136,12 +138,11 @@ export default function RecambiosForm({
                   {/* Cabecera fila 2 */}
                   <tr className="bg-[#D3D3D3]">
                     <th></th>
-                    {/* Referencia tramitada más ancha */}
-                    <th className="p-3 text-center text-sm font-semibold text-[#333] w-[260px] min-w-[240px]">Referencia Tramitada</th>
-                    <th className="p-3 text-center text-sm font-semibold text-[#333] w-[110px] min-w-[90px]">Unidades</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#333]">Referencia Tramitada</th>
+                    <th className="p-3 text-center text-sm font-semibold text-[#333] w-[120px]">Unidades</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Fecha Pedido</th>
-                    {/* Proveedor algo más estrecho para ganar espacio a Referencia */}
-                    <th className="p-3 text-center text-sm font-semibold text-[#333] w-[150px] min-w-[140px]">Proveedor</th>
+                    {/* Proveedor más estrecho (Descripción se mantiene igual) */}
+                    <th className="p-3 text-center text-sm font-semibold text-[#333] w-[180px] min-w-[160px]">Proveedor</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Transporte</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Fecha prevista de llegada</th>
                     <th className="p-3 text-center text-sm font-semibold text-[#333]">Fecha Llegada</th>
@@ -152,7 +153,7 @@ export default function RecambiosForm({
                   {/* Inputs fila 2 */}
                   <tr className={fondo}>
                     <td></td>
-                    <td className="border px-2 py-1 w-[260px] min-w-[240px]">
+                    <td className="border px-2 py-1">
                       <input
                         type="text"
                         value={e.referenciaTramitada}
@@ -160,12 +161,13 @@ export default function RecambiosForm({
                         className="w-full bg-[#F0F0F0] px-2 py-1 rounded text-sm"
                       />
                     </td>
-                    <td className="border px-2 py-1 w-[110px] min-w-[90px]">
+                    <td className="border px-2 py-1 w-[120px]">
                       <input
                         type="number"
-                        min="1"
-                        value={e.unidades ?? ""}
-                        onChange={ev => handleChange(idx, "unidades", ev.target.value)}
+                        inputMode="numeric"
+                        min={0}
+                        value={e.unidadesTramitadas ?? ""}
+                        onChange={ev => handleChange(idx, "unidadesTramitadas", ev.target.value)}
                         className="w-full bg-[#F0F0F0] px-2 py-1 rounded text-sm"
                       />
                     </td>
@@ -177,7 +179,7 @@ export default function RecambiosForm({
                         className="w-full bg-[#F0F0F0] px-2 py-1 rounded text-sm"
                       />
                     </td>
-                    <td className="border px-2 py-1 w-[150px] min-w-[140px]">
+                    <td className="border px-2 py-1 w-[180px] min-w-[160px]">
                       <input
                         type="text"
                         value={e.proveedor}
