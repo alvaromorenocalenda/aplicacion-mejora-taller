@@ -73,14 +73,17 @@ export default function RecambiosFormPage() {
   const [initialEntries, setInitialEntries] = useState([
     {
       referenciaAnterior: "",
+      unidadesAnterior: "",
       marcaAnterior: "",
       descripcion: "",
       diagnosticador: "",
       observacionesSup: "",
       referenciaTramitada: "",
+      unidadesTramitadas: "",
       fechaPedido: "",
       proveedor: "",
       transporte: "",
+      fechaPrevista: "",
       fechaLlegada: "",
       observacionesInf: "",
       recambista: "",
