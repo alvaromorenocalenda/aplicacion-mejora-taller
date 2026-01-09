@@ -26,6 +26,7 @@ export default function DocumentosPage() {
   const CATEGORIAS = [
     "Presupuestos",
     "Facturas",
+    "Informes Diagnosticos",
     "Valoraciones CIA",
     "Partes de Asistencia",
     "Otros",
