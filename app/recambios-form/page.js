@@ -34,8 +34,7 @@ export default function RecambiosListPage() {
 
   // ✅ Solo se inicializa una vez según rol (para no pisarte al hacer click)
   const didInitOnlyMine = useRef(false);
-  // Por defecto: desmarcado (mostrar todos los trabajos)
-  const [onlyMine, setOnlyMine] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(true);
 
   // ✅ Guardamos listas completas (sin filtrar por mecánico)
   const [pendientesAll, setPendientesAll] = useState([]);
