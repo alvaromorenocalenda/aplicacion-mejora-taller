@@ -35,8 +35,7 @@ export default function PresupuestosDenegadosPage() {
   const [searchR, setSearchR] = useState("");
 
   const [userRol, setUserRol] = useState("ADMIN");
-  // Por defecto: desmarcado (mostrar todos los trabajos)
-  const [onlyMine, setOnlyMine] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(true);
 
   // ✅ Evita que el rol pise el checkbox tras que el usuario haga click
   const didInitOnlyMine = useRef(false);
