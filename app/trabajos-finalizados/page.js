@@ -29,7 +29,8 @@ export default function TrabajosFinalizadosPage() {
   const [searchR, setSearchR] = useState("");
 
   const [userRol, setUserRol] = useState("ADMIN");
-  const [onlyMine, setOnlyMine] = useState(true);
+  // Por defecto: desmarcado (mostrar todos los trabajos)
+  const [onlyMine, setOnlyMine] = useState(false);
 
   // ✅ Evita que el rol pise el checkbox tras que el usuario haga click
   const didInitOnlyMine = useRef(false);
