@@ -38,8 +38,7 @@ export default function DashboardPage() {
   const [unreadMap, setUnreadMap] = useState({});
 
   const [userRol, setUserRol] = useState("ADMIN");
-  // Por defecto: desmarcado (mostrar todos los trabajos)
-  const [onlyMine, setOnlyMine] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(true);
 
   // ✅ Estado para UI de notificaciones
   const [pushStatus, setPushStatus] = useState("idle"); // idle | working | enabled | error
