@@ -309,19 +309,6 @@ export default function DiagnosticosPage() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() =>
-              pendientesSectionRef.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-              })
-            }
-            className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700"
-            title="Ir a checklist pendientes"
-          >
-            Ir a checklist pendientes
-          </button>
-
-          <button
-            onClick={() =>
               realizadasSectionRef.current?.scrollIntoView({
                 behavior: "smooth",
                 block: "start",
@@ -429,7 +416,21 @@ export default function DiagnosticosPage() {
 
       {/* Realizadas */}
       <section ref={realizadasSectionRef}>
-        <h2 className="text-2xl font-semibold mb-4">Checklist realizadas</h2>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h2 className="text-2xl font-semibold">Checklist realizadas</h2>
+          <button
+            onClick={() =>
+              pendientesSectionRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+            className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700"
+            title="Ir a checklist pendientes"
+          >
+            Ir a checklist pendientes
+          </button>
+        </div>
 
         <div className="relative mb-4">
           <input
