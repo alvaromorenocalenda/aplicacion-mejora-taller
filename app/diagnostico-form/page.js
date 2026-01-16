@@ -308,19 +308,6 @@ export default function DiagnosticosPage() {
         <h1 className="text-3xl font-bold">Diagnósticos</h1>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() =>
-              realizadasSectionRef.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-              })
-            }
-            className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700"
-            title="Ir a checklist realizadas"
-          >
-            Ir a checklist realizadas
-          </button>
-
-          <button
             onClick={() => router.push("/dashboard")}
             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
           >
@@ -349,7 +336,23 @@ export default function DiagnosticosPage() {
 
       {/* Pendientes */}
       <section ref={pendientesSectionRef}>
-        <h2 className="text-2xl font-semibold mb-4">Pendientes de diagnóstico</h2>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <h2 className="text-2xl font-semibold">Pendientes de diagnóstico</h2>
+
+          {/* ✅ Botón movido aquí (zona superior derecha del bloque de pendientes) */}
+          <button
+            onClick={() =>
+              realizadasSectionRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+            className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700"
+            title="Ir a checklist realizadas"
+          >
+            Ir a checklist realizadas
+          </button>
+        </div>
 
         <div className="relative mb-4">
           <input
