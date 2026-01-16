@@ -29,10 +29,6 @@ export default function DiagnosticosPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Refs para navegación rápida entre secciones
-  const pendientesSectionRef = useRef(null);
-  const realizadasSectionRef = useRef(null);
-
   // ✅ Mapa trabajoId -> tiene mensajes no leídos
   const [unreadMap, setUnreadMap] = useState({});
 
@@ -41,7 +37,8 @@ export default function DiagnosticosPage() {
   const [realizadasAll, setRealizadasAll] = useState([]);
 
   const [userRol, setUserRol] = useState("ADMIN");
-  const [onlyMine, setOnlyMine] = useState(true);
+  // Por defecto: desmarcado (mostrar todos los trabajos)
+  const [onlyMine, setOnlyMine] = useState(false);
 
   // estados de búsqueda
   const [searchPend, setSearchPend] = useState("");
@@ -306,7 +303,7 @@ export default function DiagnosticosPage() {
       {/* Header */}
       <header className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Diagnósticos</h1>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex space-x-2">
           <button
             onClick={() => router.push("/dashboard")}
             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
@@ -335,24 +332,8 @@ export default function DiagnosticosPage() {
       )}
 
       {/* Pendientes */}
-      <section ref={pendientesSectionRef}>
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <h2 className="text-2xl font-semibold">Pendientes de diagnóstico</h2>
-
-          {/* ✅ Botón movido aquí (zona superior derecha del bloque de pendientes) */}
-          <button
-            onClick={() =>
-              realizadasSectionRef.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-              })
-            }
-            className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700"
-            title="Ir a checklist realizadas"
-          >
-            Ir a checklist realizadas
-          </button>
-        </div>
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Pendientes de diagnóstico</h2>
 
         <div className="relative mb-4">
           <input
@@ -418,22 +399,8 @@ export default function DiagnosticosPage() {
       </section>
 
       {/* Realizadas */}
-      <section ref={realizadasSectionRef}>
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <h2 className="text-2xl font-semibold">Checklist realizadas</h2>
-          <button
-            onClick={() =>
-              pendientesSectionRef.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-              })
-            }
-            className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700"
-            title="Ir a checklist pendientes"
-          >
-            Ir a checklist pendientes
-          </button>
-        </div>
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Checklist realizadas</h2>
 
         <div className="relative mb-4">
           <input
