@@ -29,13 +29,9 @@ export default function DiagnosticosPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔽 Botón para bajar a "Checklist realizadas"
-  const goToRealizadas = () => {
-    const el = document.getElementById("checklists-realizadas");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
+  // Refs para navegación rápida entre secciones
+  const pendientesSectionRef = useRef(null);
+  const realizadasSectionRef = useRef(null);
 
   // ✅ Mapa trabajoId -> tiene mensajes no leídos
   const [unreadMap, setUnreadMap] = useState({});
@@ -310,14 +306,33 @@ export default function DiagnosticosPage() {
       {/* Header */}
       <header className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Diagnósticos</h1>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={goToRealizadas}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            title="Ir a Checklist realizadas"
+            onClick={() =>
+              pendientesSectionRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+            className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700"
+            title="Ir a checklist pendientes"
           >
-            Checklist realizadas
+            Ir a checklist pendientes
           </button>
+
+          <button
+            onClick={() =>
+              realizadasSectionRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              })
+            }
+            className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700"
+            title="Ir a checklist realizadas"
+          >
+            Ir a checklist realizadas
+          </button>
+
           <button
             onClick={() => router.push("/dashboard")}
             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
@@ -346,7 +361,7 @@ export default function DiagnosticosPage() {
       )}
 
       {/* Pendientes */}
-      <section>
+      <section ref={pendientesSectionRef}>
         <h2 className="text-2xl font-semibold mb-4">Pendientes de diagnóstico</h2>
 
         <div className="relative mb-4">
@@ -413,10 +428,8 @@ export default function DiagnosticosPage() {
       </section>
 
       {/* Realizadas */}
-      <section>
-        <h2 id="checklists-realizadas" className="text-2xl font-semibold mb-4">
-          Checklist realizadas
-        </h2>
+      <section ref={realizadasSectionRef}>
+        <h2 className="text-2xl font-semibold mb-4">Checklist realizadas</h2>
 
         <div className="relative mb-4">
           <input
