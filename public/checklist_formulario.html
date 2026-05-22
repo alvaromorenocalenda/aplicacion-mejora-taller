@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checklist Vehicle Safety Report</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 1rem; background: #f5f5f5; color: #333; }
+    .container { max-width: 900px; margin: auto; background: #fff; padding: 1.5rem; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .header img { max-height: 50px; }
+    .title-right { text-align: right; font-size: 1.1rem; line-height: 1.2; color: #C00; text-transform: uppercase; font-weight: bold; }
+    h2 { border-bottom: 2px solid #C00; padding-bottom: 0.25rem; margin-top: 1rem; }
+    .section { margin-top: 1rem; }
+    .highlighted { background: rgba(255, 0, 0, 0.61); padding: 0.75rem; border-radius: 4px; border: 1px solid #fde2a9; }
+    .field label { font-size: 0.9rem; margin-bottom: 0.25rem; display: block; }
+    .field input, textarea { padding: 0.4rem; border: 1px solid #aaa; border-radius: 4px; width: 100%; }
+    .inline-group { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+    .grid-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+    .grid-table th, .grid-table td { border: 1px solid #333; text-align: center; padding: 0.4rem; }
+    .grid-table th:first-child, .grid-table td:first-child { text-align: left; background: #f9f9f9; font-weight: normal; }
+    .grid-table thead th .icon { font-size: 1.2rem; display: block; }
+    .grid-table thead th div { font-size: 0.85rem; margin-top: 0.2rem; }
+    textarea { resize: vertical; min-height: 60px; }
+    .submit-btn { display: inline-block; margin-top: 1.5rem; padding: 0.6rem 1.5rem; background: #C00; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title-left">
+        <img src="https://1000marcas.net/wp-content/uploads/2019/12/logo-Toyota.png" alt="Logo Izquierda">
+        <div>CHECKLIST VEHICULO</div>
+      </div>
+      <div class="title-right">Calenda Automoción<br>Higuera la Real</div>
+    </div>
+
+    <h2>Datos del VH</h2>
+    <div class="section row">
+      <div class="field"><label for="matricula">Matrícula</label><input type="text" id="matricula" name="matricula"></div>
+      <div class="field"><label for="numeroOR">Nº OR</label><input type="text" id="numeroOR" name="numeroOR"></div>
+      <div class="field"><label for="ciclo">Ciclo</label><input type="text" id="ciclo" name="ciclo"></div>
+      <div class="field"><label for="marcaModelo">Marca/Modelo</label><input type="text" id="marcaModelo" name="marcaModelo"></div>
+      <div class="field"><label for="fechaCita">Fecha de cita</label><input type="date" id="fechaCita" name="fechaCita"></div>
+    </div>
+
+    <div class="section">
+      <label>Testigos y/o mensajes del cuadro:</label>
+      <div class="inline-group">
+        <input type="radio" id="msg_si" name="mensaje" value="si"><label for="msg_si">Sí</label>
+        <input type="radio" id="msg_no" name="mensaje" value="no"><label for="msg_no">No</label>
+      </div>
+    </div>
+
+    <!-- Observaciones Testigos/Mensajes -->
+    <div class="section">
+      <label for="obs_testigos/mensajes"><strong>Observaciones (testigos/mensajes):</strong></label>
+      <textarea id="obs_testigos/mensajes" name="obs_testigos/mensajes"></textarea>
+    </div>
+
+    <!-- Recambios Solicitados -->
+    <div class="section highlighted">
+      <label for="recambios"><strong>Recambios solicitados:</strong></label>
+      <textarea id="recambios" name="recambios" placeholder="Detalle los recambios necesarios"></textarea>
+    </div>
+
+    <h2>Puntos de revisión</h2>
+
+    <!-- Sección Niveles de Líquidos -->
+    <div class="section">
+      <strong>Niveles de líquidos:</strong>
+      <table class="grid-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th><span class="icon">✅</span><div>Bien</div></th>
+            <th><span class="icon">🔍</span><div>Regular</div></th>
+            <th><span class="icon">⚠️</span><div>Requiere Cambio</div></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Aceite motor</td><td><input type="radio" name="aceite" value="bien"></td><td><input type="radio" name="aceite" value="regular"></td><td><input type="radio" name="aceite" value="cambio"></td></tr>
+          <tr><td>Refrigerante</td><td><input type="radio" name="refrigerante" value="bien"></td><td><input type="radio" name="refrigerante" value="regular"></td><td><input type="radio" name="refrigerante" value="cambio"></td></tr>
+          <tr><td>Freno</td><td><input type="radio" name="freno_liquido" value="bien"></td><td><input type="radio" name="freno_liquido" value="regular"></td><td><input type="radio" name="freno_liquido" value="cambio"></td></tr>
+          <tr><td>Embrague</td><td><input type="radio" name="embrague_liquido" value="bien"></td><td><input type="radio" name="embrague_liquido" value="regular"></td><td><input type="radio" name="embrague_liquido" value="cambio"></td></tr>
+          <tr><td>Servodirección hidráulica</td><td><input type="radio" name="servo_liquido" value="bien"></td><td><input type="radio" name="servo_liquido" value="regular"></td><td><input type="radio" name="servo_liquido" value="cambio"></td></tr>
+          <tr><td>Limpiaparabrisas</td><td><input type="radio" name="limpiap_liquido" value="bien"></td><td><input type="radio" name="limpiap_liquido" value="regular"></td><td><input type="radio" name="limpiap_liquido" value="cambio"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Observaciones Líquidos -->
+    <div class="section">
+      <label for="obs_liquidos"><strong>Observaciones (líquidos):</strong></label>
+      <textarea id="obs_liquidos" name="obs_liquidos"></textarea>
+    </div>
+
+    <!-- Estado de neumáticos -->
+    <div class="section">
+      <strong>Estado de neumáticos:</strong>
+      <table class="grid-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th><span class="icon">✅</span><div>Bien</div></th>
+            <th><span class="icon">🔍</span><div>Regular</div></th>
+            <th><span class="icon">⚠️</span><div>Requiere Cambio</div></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Delantero Izquierdo (DI)</td><td><input type="radio" name="neuma_di" value="bien"></td><td><input type="radio" name="neuma_di" value="regular"></td><td><input type="radio" name="neuma_di" value="cambio"></td></tr>
+          <tr><td>Delantero Derecho (DD)</td><td><input type="radio" name="neuma_dd" value="bien"></td><td><input type="radio" name="neuma_dd" value="regular"></td><td><input type="radio" name="neuma_dd" value="cambio"></td></tr>
+          <tr><td>Trasero Izquierdo (TI)</td><td><input type="radio" name="neuma_ti" value="bien"></td><td><input type="radio" name="neuma_ti" value="regular"></td><td><input type="radio" name="neuma_ti" value="cambio"></td></tr>
+          <tr><td>Trasero Derecho (TD)</td><td><input type="radio" name="neuma_td" value="bien"></td><td><input type="radio" name="neuma_td" value="regular"></td><td><input type="radio" name="neuma_td" value="cambio"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Observaciones Neumáticos -->
+    <div class="section">
+      <label for="obs_neumaticos"><strong>Observaciones (neumáticos):</strong></label>
+      <textarea id="obs_neumaticos" name="obs_neumaticos"></textarea>
+    </div>
+
+    <!-- Frenos -->
+    <div class="section">
+      <strong>Frenos:</strong>
+      <table class="grid-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th><span class="icon">✅</span><div>Bien</div></th>
+            <th><span class="icon">🔍</span><div>Regular</div></th>
+            <th><span class="icon">⚠️</span><div>Requiere Cambio</div></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Discos</td><td><input type="radio" name="frenos_discos" value="bien"></td><td><input type="radio" name="frenos_discos" value="regular"></td><td><input type="radio" name="frenos_discos" value="cambio"></td></tr>
+          <tr><td>Pastillas</td><td><input type="radio" name="frenos_pastillas" value="bien"></td><td><input type="radio" name="frenos_pastillas" value="regular"></td><td><input type="radio" name="frenos_pastillas" value="cambio"></td></tr>
+          <tr><td>Racores flexibles</td><td><input type="radio" name="frenos_racores" value="bien"></td><td><input type="radio" name="frenos_racores" value="regular"></td><td><input type="radio" name="frenos_racores" value="cambio"></td></tr>
+          <tr><td>Freno de estacionamiento</td><td><input type="radio" name="freno_est" value="bien"></td><td><input type="radio" name="freno_est" value="regular"></td><td><input type="radio" name="freno_est" value="cambio"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Observaciones Frenos -->
+    <div class="section">
+      <label for="obs_frenos"><strong>Observaciones (frenos):</strong></label>
+      <textarea id="obs_frenos" name="obs_frenos"></textarea>
+    </div>
+
+    <!-- Limpiaparabrisas -->
+    <div class="section">
+      <strong>Limpiaparabrisas:</strong>
+      <table class="grid-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th><span class="icon">✅</span><div>Bien</div></th>
+            <th><span class="icon">🔍</span><div>Regular</div></th>
+            <th><span class="icon">⚠️</span><div>Requiere Cambio</div></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Funcionamiento</td><td><input type="radio" name="limpia_func" value="bien"></td><td><input type="radio" name="limpia_func" value="regular"></td><td><input type="radio" name="limpia_func" value="cambio"></td></tr>
+          <tr><td>Estado de escobillas (DI)</td><td><input type="radio" name="limpia_escobillas_di" value="bien"></td><td><input type="radio" name="limpia_escobillas_di" value="regular"></td><td><input type="radio" name="limpia_escobillas_di" value="cambio"></td></tr>
+          <tr><td>Estado de escobillas (DD)</td><td><input type="radio" name="limpia_escobillas_dd" value="bien"></td><td><input type="radio" name="limpia_escobillas_dd" value="regular"></td><td><input type="radio" name="limpia_escobillas_dd" value="cambio"></td></tr>
+          <tr><td>Estado de escobillas (Trasera)</td><td><input type="radio" name="limpia_escobillas_trasera" value="bien"></td><td><input type="radio" name="limpia_escobillas_trasera" value="regular"></td><td><input type="radio" name="limpia_escobillas_trasera" value="cambio"></td></tr>
+          <tr><td>Surtidores de líquido (DI)</td><td><input type="radio" name="limpia_surt_di" value="bien"></td><td><input type="radio" name="limpia_surt_di" value="regular"></td><td><input type="radio" name="limpia_surt_di" value="cambio"></td></tr>
+          <tr><td>Surtidores de líquido (DD)</td><td><input type="radio" name="limpia_surt_dd" value="bien"></td><td><input type="radio" name="limpia_surt_dd" value="regular"></td><td><input type="radio" name="limpia_surt_dd" value="cambio"></td></tr>
+          <tr><td>Surtidores de líquido (Trasero)</td><td><input type="radio" name="limpia_surt_tr" value="bien"></td><td><input type="radio" name="limpia_surt_tr" value="regular"></td><td><input type="radio" name="limpia_surt_tr" value="cambio"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Observaciones Limpiaparabrisas -->
+    <div class="section">
+      <label for="obs_limpiaparabrisas"><strong>Observaciones (limpiaparabrisas):</strong></label>
+      <textarea id="obs_limpiaparabrisas" name="obs_limpiaparabrisas"></textarea>
+    </div>
+
+        <!-- Sección Otros elementos -->
+    <div class="section">
+      <strong>Otros elementos:</strong>
+      <table class="grid-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th><span class="icon">✅</span><div>Bien</div></th>
+            <th><span class="icon">🔍</span><div>Regular</div></th>
+            <th><span class="icon">⚠️</span><div>Requiere Cambio</div></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Guardapolvos de rótulas</td><td><input type="radio" name="otros_rotulas" value="bien"></td><td><input type="radio" name="otros_rotulas" value="regular"></td><td><input type="radio" name="otros_rotulas" value="cambio"></td></tr>
+          <tr><td>Fuelles de transmisión</td><td><input type="radio" name="otros_fuelles" value="bien"></td><td><input type="radio" name="otros_fuelles" value="regular"></td><td><input type="radio" name="otros_fuelles" value="cambio"></td></tr>
+          <tr><td>Amortiguadores</td><td><input type="radio" name="otros_amort" value="bien"></td><td><input type="radio" name="otros_amort" value="regular"></td><td><input type="radio" name="otros_amort" value="cambio"></td></tr>
+          <tr><td>Línea de escape</td><td><input type="radio" name="otros_escape" value="bien"></td><td><input type="radio" name="otros_escape" value="regular"></td><td><input type="radio" name="otros_escape" value="cambio"></td></tr>
+          <tr><td>Tanque de combustible</td><td><input type="radio" name="otros_tanque" value="bien"></td><td><input type="radio" name="otros_tanque" value="regular"></td><td><input type="radio" name="otros_tanque" value="cambio"></td></tr>
+          <tr><td>Cubre bajos</td><td><input type="radio" name="otros_cubre" value="bien"></td><td><input type="radio" name="otros_cubre" value="regular"></td><td><input type="radio" name="otros_cubre" value="cambio"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Observaciones Otros elementos -->
+    <div class="section">
+      <label for="obs_otros"><strong>Observaciones (otros elementos):</strong></label>
+      <textarea id="obs_otros" name="obs_otros"></textarea>
+    </div>
+
+    <!-- Estado de la batería -->
+    <div class="section">
+      <strong>Estado de la batería:</strong>
+      <div class="inline-group">
+        <input type="radio" id="bat_ok" name="bateria" value="correcto"><label for="bat_ok">Correcto</label>
+        <input type="radio" id="bat_incorrecto" name="bateria" value="incorrecto"><label for="bat_incorrecto">Incorrecto</label>
+        <input type="radio" id="bat_carga" name="bateria" value="carga"><label for="bat_carga">Necesita Carga</label>
+      </div>
+    </div>
+
+    <!-- Observaciones Batería -->
+    <div class="section">
+      <label for="obs_bateria"><strong>Observaciones (batería):</strong></label>
+      <textarea id="obs_bateria" name="obs_bateria"></textarea>
+    </div>
+
+    
+  </div>
+</body>
+</html>
