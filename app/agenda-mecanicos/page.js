@@ -5,16 +5,14 @@ import { useRouter } from "next/navigation"
 import { addDoc, collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc, updateDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
 
+const DEFAULT_HORARIO = { horaInicio: "08:00", horaFin: "16:00", pausaInicio: "", pausaFin: "", sabado: false, domingo: false }
 const pad = (n) => String(n).padStart(2, "0")
 const toDate = (v) => v?.toDate?.() ? v.toDate() : v ? new Date(v) : null
 const fechaInput = (v = new Date()) => `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}T${pad(v.getHours())}:${pad(v.getMinutes())}`
 const fechaTexto = (v) => { const f = toDate(v); return f && !isNaN(f) ? f.toLocaleString("es-ES", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "Sin fecha" }
-const fechaFin = (v, h) => { const f = toDate(v); const horas = Number(h || 0); return f && horas ? new Date(f.getTime() + horas * 3600000) : null }
-const fechaFinTexto = (v, h) => { const f = fechaFin(v, h); return f ? fechaTexto(f) : "Sin estimar" }
 const normalizar = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "")
 const estadoTxt = (e) => e === "terminado" ? "Terminado" : e === "en_proceso" ? "En proceso" : "Pendiente"
 const duracionTxt = (h) => { const n = Number(h || 0); if (!n) return "Sin estimar"; const hh = Math.floor(n); const mm = Math.round((n - hh) * 60); if (hh && mm) return `${hh} h ${mm} min`; if (hh) return `${hh} h`; return `${mm} min` }
-const retrasado = (t) => t.estado !== "terminado" && fechaFin(t.fechaInicio, t.duracionHoras) && fechaFin(t.fechaInicio, t.duracionHoras) < new Date()
 const badge = (e) => e === "terminado" ? "bg-green-100 text-green-800 border-green-200" : e === "en_proceso" ? "bg-blue-100 text-blue-800 border-blue-200" : "bg-yellow-100 text-yellow-800 border-yellow-200"
 const claveVehiculo = (v) => normalizar(`${v?.matricula || ""}${v?.numeroOR || ""}`) || normalizar(v?.vehiculoId || v?.id || "")
 const esMismoVehiculo = (t, v) => {
@@ -23,6 +21,100 @@ const esMismoVehiculo = (t, v) => {
   const a = claveVehiculo(t)
   const b = claveVehiculo(v)
   return !!a && !!b && a === b
+}
+
+function minutos(hora) {
+  const [h, m] = String(hora || "").split(":").map(Number)
+  if (Number.isNaN(h) || Number.isNaN(m)) return null
+  return h * 60 + m
+}
+function conHora(base, min) {
+  const f = new Date(base)
+  f.setHours(Math.floor(min / 60), min % 60, 0, 0)
+  return f
+}
+function normalizarHorario(horario) {
+  return { ...DEFAULT_HORARIO, ...(horario || {}) }
+}
+function esDiaLaborable(fecha, horario) {
+  const d = fecha.getDay()
+  if (d >= 1 && d <= 5) return true
+  if (d === 6) return !!horario.sabado
+  if (d === 0) return !!horario.domingo
+  return false
+}
+function siguienteDiaLaborable(fecha, horario) {
+  const f = new Date(fecha)
+  f.setDate(f.getDate() + 1)
+  f.setHours(0, 0, 0, 0)
+  for (let i = 0; i < 370; i++) {
+    if (esDiaLaborable(f, horario)) return conHora(f, minutos(horario.horaInicio) ?? 480)
+    f.setDate(f.getDate() + 1)
+  }
+  return f
+}
+function segmentosDia(fecha, horario) {
+  const inicio = minutos(horario.horaInicio) ?? 480
+  const fin = minutos(horario.horaFin) ?? 960
+  const pIni = minutos(horario.pausaInicio)
+  const pFin = minutos(horario.pausaFin)
+  if (pIni !== null && pFin !== null && pIni > inicio && pFin > pIni && pFin < fin) {
+    return [[conHora(fecha, inicio), conHora(fecha, pIni)], [conHora(fecha, pFin), conHora(fecha, fin)]]
+  }
+  return [[conHora(fecha, inicio), conHora(fecha, fin)]]
+}
+function calcularFinLaboral(inicioValor, horas, horarioBase) {
+  const horario = normalizarHorario(horarioBase)
+  let actual = toDate(inicioValor) || new Date()
+  let restante = Math.round(Number(horas || 0) * 60)
+  if (!restante) return null
+
+  for (let guardia = 0; guardia < 20000; guardia++) {
+    if (!esDiaLaborable(actual, horario)) {
+      actual = siguienteDiaLaborable(actual, horario)
+      continue
+    }
+
+    const segmentos = segmentosDia(actual, horario)
+    const finDia = segmentos[segmentos.length - 1][1]
+    if (actual >= finDia) {
+      actual = siguienteDiaLaborable(actual, horario)
+      continue
+    }
+
+    let avanzado = false
+    for (const [segInicio, segFin] of segmentos) {
+      if (actual < segInicio) actual = new Date(segInicio)
+      if (actual >= segInicio && actual < segFin) {
+        const disponibles = Math.floor((segFin - actual) / 60000)
+        if (restante <= disponibles) return new Date(actual.getTime() + restante * 60000)
+        restante -= disponibles
+        actual = new Date(segFin)
+        avanzado = true
+      }
+    }
+
+    if (!avanzado || actual >= finDia) actual = siguienteDiaLaborable(actual, horario)
+  }
+  return null
+}
+function finPlanificado(trabajo, mecanico) {
+  return calcularFinLaboral(trabajo.fechaInicio, trabajo.duracionHoras, trabajo.horario || mecanico?.horario)
+}
+function fechaFinTexto(trabajo, mecanico) {
+  const f = finPlanificado(trabajo, mecanico)
+  return f ? fechaTexto(f) : "Sin estimar"
+}
+function retrasado(trabajo, mecanico) {
+  if (trabajo.estado === "terminado") return false
+  const fin = finPlanificado(trabajo, mecanico)
+  return !!fin && fin < new Date()
+}
+function horarioTexto(h) {
+  const hor = normalizarHorario(h)
+  const pausa = hor.pausaInicio && hor.pausaFin ? ` · Pausa ${hor.pausaInicio}-${hor.pausaFin}` : ""
+  const finde = `${hor.sabado ? " · Sab" : ""}${hor.domingo ? " · Dom" : ""}`
+  return `${hor.horaInicio}-${hor.horaFin}${pausa}${finde}`
 }
 
 export default function AgendaMecanicosPage() {
@@ -37,7 +129,6 @@ export default function AgendaMecanicosPage() {
   const [form, setForm] = useState({ mecanicoId:"", vehiculoId:"", tipoVehiculo:"existente", fechaInicio: fechaInput(), duracionHoras:"1", estado:"pendiente", notas:"", manualMatricula:"", manualNumeroOR:"", manualCliente:"", manualMarcaModelo:"" })
 
   const mostrarAviso = (tipo, titulo, texto) => setAviso({ tipo, titulo, texto })
-
   const mecanicosActivos = useMemo(() => mecanicos.filter(m => m.activo !== false), [mecanicos])
   const vehiculosFiltrados = useMemo(() => {
     const q = normalizar(busqueda)
@@ -49,8 +140,8 @@ export default function AgendaMecanicosPage() {
     pendientes: trabajos.filter(t => !t.estado || t.estado === "pendiente").length,
     enProceso: trabajos.filter(t => t.estado === "en_proceso").length,
     terminados: trabajos.filter(t => t.estado === "terminado").length,
-    retrasados: trabajos.filter(retrasado).length,
-  }), [trabajos])
+    retrasados: trabajos.filter(t => retrasado(t, mecanicosActivos.find(m => m.id === t.mecanicoId))).length,
+  }), [trabajos, mecanicosActivos])
 
   useEffect(() => { cargarDatos() }, [])
 
@@ -59,17 +150,24 @@ export default function AgendaMecanicosPage() {
       const [mecSnap, usersSnap, vehSnap, traSnap] = await Promise.all([getDocs(collection(db, "mecanicos")), getDocs(collection(db, "users")), getDocs(collection(db, "cuestionarios_cliente")), getDocs(collection(db, "agenda_mecanicos"))])
       const ocultos = new Set()
       const mapa = new Map()
-      mecSnap.docs.forEach(d => { const x = d.data() || {}; if (x.activo === false) { ocultos.add(x.uid || d.id); ocultos.add(normalizar(x.nombre)); return } mapa.set(d.id, { id:d.id, nombre:x.nombre || x.displayName || x.email || "Mecanico", activo:true, origen:"manual", ...x }) })
-      usersSnap.docs.forEach(d => { const x = d.data() || {}; const rol = String(x.rol || x.role || "").toUpperCase(); const nombre = x.nombre || x.displayName || x.name || x.email || "Mecanico"; if (rol.includes("MECANICO") && !ocultos.has(d.id) && !ocultos.has(normalizar(nombre)) && !mapa.has(d.id)) mapa.set(d.id, { id:d.id, nombre, activo:x.activo !== false, origen:"usuario", uid:d.id }) })
+      mecSnap.docs.forEach(d => {
+        const x = d.data() || {}
+        if (x.activo === false) { ocultos.add(x.uid || d.id); ocultos.add(normalizar(x.nombre)); return }
+        mapa.set(d.id, { id:d.id, nombre:x.nombre || x.displayName || x.email || "Mecanico", activo:true, origen:"manual", horario: normalizarHorario(x.horario), ...x })
+      })
+      usersSnap.docs.forEach(d => {
+        const x = d.data() || {}; const rol = String(x.rol || x.role || "").toUpperCase(); const nombre = x.nombre || x.displayName || x.name || x.email || "Mecanico"
+        if (rol.includes("MECANICO") && !ocultos.has(d.id) && !ocultos.has(normalizar(nombre)) && !mapa.has(d.id)) mapa.set(d.id, { id:d.id, nombre, activo:x.activo !== false, origen:"usuario", uid:d.id, horario: normalizarHorario(x.horario) })
+      })
       const listaVehiculos = vehSnap.docs.map(d => {
         const docData = d.data() || {}; const datos = docData.datos || docData || {}
         if (docData.asignadoMecanicoUid || docData.asignadoMecanicoNombre) {
           const id = docData.asignadoMecanicoUid || `asignado-${normalizar(docData.asignadoMecanicoNombre)}`; const nombre = docData.asignadoMecanicoNombre || "Mecanico asignado"
-          if (!ocultos.has(id) && !ocultos.has(normalizar(nombre)) && !mapa.has(id)) mapa.set(id, { id, nombre, activo:true, origen:"asignado", uid:docData.asignadoMecanicoUid || null })
+          if (!ocultos.has(id) && !ocultos.has(normalizar(nombre)) && !mapa.has(id)) mapa.set(id, { id, nombre, activo:true, origen:"asignado", uid:docData.asignadoMecanicoUid || null, horario: DEFAULT_HORARIO })
         }
         return { id:d.id, matricula:datos.matricula || "", numeroOR:datos.numeroOR || "", cliente:datos.nombreCliente || datos.nombre || "", marcaModelo:datos.marcaModelo || datos.modelo || "", estadoPresupuesto:docData.estadoPresupuesto || datos.estadoPresupuesto || "" }
       }).filter(v => !["FINALIZADO", "DENEGADO"].includes(String(v.estadoPresupuesto || "").toUpperCase())).sort((a,b) => String(a.matricula).localeCompare(String(b.matricula)))
-      const listaMecanicos = Array.from(mapa.values()).sort((a,b) => String(a.nombre).localeCompare(String(b.nombre)))
+      const listaMecanicos = Array.from(mapa.values()).map(m => ({ ...m, horario: normalizarHorario(m.horario) })).sort((a,b) => String(a.nombre).localeCompare(String(b.nombre)))
       const listaTrabajos = traSnap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b) => (toDate(a.fechaInicio) || new Date(0)) - (toDate(b.fechaInicio) || new Date(0)))
       setMecanicos(listaMecanicos); setVehiculos(listaVehiculos); setTrabajos(listaTrabajos)
       setForm(f => ({ ...f, mecanicoId:f.mecanicoId || listaMecanicos[0]?.id || "", vehiculoId:f.vehiculoId || listaVehiculos[0]?.id || "" }))
@@ -79,17 +177,26 @@ export default function AgendaMecanicosPage() {
   async function agregarMecanico(e) {
     e.preventDefault(); const nombre = nombreMecanico.trim(); if (!nombre) return
     setGuardando(true)
-    try { await addDoc(collection(db, "mecanicos"), { nombre, activo:true, creadoEn:serverTimestamp() }); setNombreMecanico(""); await cargarDatos(); mostrarAviso("ok", "Mecanico añadido", `${nombre} se ha añadido a la agenda.`) }
+    try { await addDoc(collection(db, "mecanicos"), { nombre, activo:true, horario: DEFAULT_HORARIO, creadoEn:serverTimestamp() }); setNombreMecanico(""); await cargarDatos(); mostrarAviso("ok", "Mecanico añadido", `${nombre} se ha añadido a la agenda.`) }
     catch (e) { console.error(e); mostrarAviso("error", "Error", "No se ha podido añadir el mecanico.") }
     finally { setGuardando(false) }
   }
 
+  async function guardarHorario(m) {
+    try {
+      await setDoc(doc(db, "mecanicos", m.id), { nombre:m.nombre, activo:true, horario: normalizarHorario(m.horario), actualizadoEn:serverTimestamp() }, { merge:true })
+      await cargarDatos()
+      mostrarAviso("ok", "Horario guardado", `Horario actualizado para ${m.nombre}.`)
+    } catch (e) { console.error(e); mostrarAviso("error", "Error", "No se ha podido guardar el horario.") }
+  }
   async function quitarMecanico(m) { if (!confirm("Quieres quitar este mecanico de la agenda?")) return; if (m.origen === "manual") await updateDoc(doc(db, "mecanicos", m.id), { activo:false, actualizadoEn:serverTimestamp() }); else await addDoc(collection(db, "mecanicos"), { nombre:m.nombre, activo:false, origenOculto:m.origen || "usuario", uid:m.uid || m.id, creadoEn:serverTimestamp() }); await cargarDatos() }
+  function cambiarHorarioLocal(id, campo, valor) { setMecanicos(prev => prev.map(m => m.id === id ? { ...m, horario: { ...normalizarHorario(m.horario), [campo]: valor } } : m)) }
 
-  async function enviarReporteChat(vehiculo, mecanico, inicio, duracionHoras) {
+  async function enviarReporteChat(vehiculo, mecanico, inicio, duracionHoras, horario) {
     if (vehiculo.manual || !vehiculo.id) return
     const trabajoId = String(vehiculo.id)
-    const texto = `Agenda mecanicos: se ha asignado el vehiculo ${vehiculo.matricula || "Sin matricula"} - OR ${vehiculo.numeroOR || "Sin OR"} al mecanico ${mecanico.nombre}. Inicio: ${fechaTexto(inicio)}. Tiempo estimado: ${duracionTxt(duracionHoras)}. Finalizacion estimada: ${fechaFinTexto(inicio, duracionHoras)}.`
+    const fin = calcularFinLaboral(inicio, duracionHoras, horario)
+    const texto = `Agenda mecanicos: se ha asignado el vehiculo ${vehiculo.matricula || "Sin matricula"} - OR ${vehiculo.numeroOR || "Sin OR"} al mecanico ${mecanico.nombre}. Inicio: ${fechaTexto(inicio)}. Tiempo estimado: ${duracionTxt(duracionHoras)}. Horario: ${horarioTexto(horario)}. Finalizacion estimada: ${fechaTexto(fin)}.`
     const user = auth.currentUser
     await addDoc(collection(db, "chats_trabajos", trabajoId, "messages"), { text:texto, createdAt:serverTimestamp(), uid:user?.uid || "agenda-mecanicos", displayName:"Agenda mecanicos" })
     await setDoc(doc(db, "chats_trabajos", trabajoId), { cuestionarioId:trabajoId, matricula:vehiculo.matricula || "", numeroOR:vehiculo.numeroOR || "", nombreCliente:vehiculo.cliente || "", lastMessage:texto.slice(0, 180), updatedAt:serverTimestamp(), lastSenderUid:user?.uid || "agenda-mecanicos" }, { merge:true })
@@ -107,11 +214,12 @@ export default function AgendaMecanicosPage() {
     try {
       const inicio = form.fechaInicio ? new Date(form.fechaInicio) : new Date()
       const duracionHoras = Number(form.duracionHoras || 0)
-      await addDoc(collection(db, "agenda_mecanicos"), { mecanicoId:mecanico.id, mecanicoNombre:mecanico.nombre, vehiculoId:vehiculo.id, vehiculoManual:!!vehiculo.manual, matricula:vehiculo.matricula, numeroOR:vehiculo.numeroOR, cliente:vehiculo.cliente, marcaModelo:vehiculo.marcaModelo, fechaInicio:inicio, duracionHoras, estado:form.estado, notas:form.notas.trim(), creadoEn:serverTimestamp() })
-      try { await enviarReporteChat(vehiculo, mecanico, inicio, duracionHoras) } catch (chatError) { console.error("No se pudo enviar reporte al chat:", chatError) }
+      const horario = normalizarHorario(mecanico.horario)
+      await addDoc(collection(db, "agenda_mecanicos"), { mecanicoId:mecanico.id, mecanicoNombre:mecanico.nombre, vehiculoId:vehiculo.id, vehiculoManual:!!vehiculo.manual, matricula:vehiculo.matricula, numeroOR:vehiculo.numeroOR, cliente:vehiculo.cliente, marcaModelo:vehiculo.marcaModelo, fechaInicio:inicio, duracionHoras, horario, estado:form.estado, notas:form.notas.trim(), creadoEn:serverTimestamp() })
+      try { await enviarReporteChat(vehiculo, mecanico, inicio, duracionHoras, horario) } catch (chatError) { console.error("No se pudo enviar reporte al chat:", chatError) }
       setForm(f => ({ ...f, duracionHoras:"1", notas:"", manualMatricula:"", manualNumeroOR:"", manualCliente:"", manualMarcaModelo:"" }))
       await cargarDatos()
-      mostrarAviso("ok", "Vehiculo asignado", `Se ha asignado a ${mecanico.nombre}. Tiempo estimado: ${duracionTxt(duracionHoras)}. Tambien se ha reportado en el chat del trabajo si el vehiculo existe en la app.`)
+      mostrarAviso("ok", "Vehiculo asignado", `Se ha asignado a ${mecanico.nombre}. Tiempo estimado: ${duracionTxt(duracionHoras)}. Finalizacion segun horario: ${fechaTexto(calcularFinLaboral(inicio, duracionHoras, horario))}.`)
     } catch (e) { console.error(e); mostrarAviso("error", "Error", "No se ha podido asignar el vehiculo.") }
     finally { setGuardando(false) }
   }
@@ -126,14 +234,14 @@ export default function AgendaMecanicosPage() {
     <style jsx global>{`@media print{body{background:white!important}.no-print{display:none!important}.print-summary{display:none!important}.print-area{box-shadow:none!important;border:none!important;padding:0!important}.print-grid{display:block!important}.print-card{break-inside:avoid;margin-bottom:16px}}`}</style>
     {aviso && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 no-print"><div className={`w-full max-w-md rounded-2xl border-2 p-6 shadow-2xl ${estiloAviso}`}><div className="flex items-start gap-4"><div className="text-4xl">{iconoAviso}</div><div className="flex-1"><h3 className="text-xl font-bold mb-2">{aviso.titulo}</h3><p className="text-sm leading-relaxed">{aviso.texto}</p></div></div><button onClick={() => setAviso(null)} className="mt-5 w-full rounded-lg bg-gray-900 px-4 py-2 font-semibold text-white hover:bg-black">Aceptar</button></div></div>}
     <div className="max-w-7xl mx-auto space-y-6">
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between no-print"><div><h1 className="text-3xl font-bold text-gray-900">Agenda Mecanicos</h1><p className="text-gray-600 mt-1">Añade mecanicos y asigna vehiculos a reparar con duracion estimada.</p></div><div className="flex gap-3 flex-wrap"><button onClick={() => router.push("/calendario-citas")} className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700">Calendario de Citas</button><button onClick={() => router.push("/calendarios")} className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">Volver a Calendarios</button></div></header>
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-5 no-print"><form onSubmit={agregarMecanico} className="bg-white rounded-xl shadow p-5 space-y-4"><h2 className="text-xl font-bold">Añadir mecanico</h2><input value={nombreMecanico} onChange={e => setNombreMecanico(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Nombre del mecanico"/><button disabled={guardando} className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-60">+ Añadir mecanico</button><div className="pt-2 border-t space-y-2"><h3 className="font-semibold">Mecanicos activos</h3>{mecanicosActivos.length === 0 ? <p className="text-sm text-gray-500">Todavia no hay mecanicos.</p> : mecanicosActivos.map(m => <div key={m.id} className="flex justify-between items-center bg-gray-50 rounded px-3 py-2"><span className="font-medium">{m.nombre}</span><button type="button" onClick={() => quitarMecanico(m)} className="text-red-600 text-sm font-semibold hover:underline">Quitar</button></div>)}</div></form>
-        <form onSubmit={asignarTrabajo} className="bg-white rounded-xl shadow p-5 space-y-4 lg:col-span-2"><h2 className="text-xl font-bold">Asignar vehiculo a mecanico</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><label className="space-y-1"><span className="text-sm font-semibold">Mecanico</span><select value={form.mecanicoId} onChange={e => setForm({...form, mecanicoId:e.target.value})} className="w-full border rounded px-3 py-2"><option value="">Selecciona mecanico</option>{mecanicosActivos.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></label><label className="space-y-1"><span className="text-sm font-semibold">Tipo de vehiculo</span><select value={form.tipoVehiculo} onChange={e => setForm({...form, tipoVehiculo:e.target.value})} className="w-full border rounded px-3 py-2"><option value="existente">Buscar vehiculo de la aplicacion</option><option value="manual">Agregar vehiculo manual</option></select></label></div>
+      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between no-print"><div><h1 className="text-3xl font-bold text-gray-900">Agenda Mecanicos</h1><p className="text-gray-600 mt-1">Añade mecanicos, configura su horario y reparte los trabajos por jornada laboral.</p></div><div className="flex gap-3 flex-wrap"><button onClick={() => router.push("/calendario-citas")} className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700">Calendario de Citas</button><button onClick={() => router.push("/calendarios")} className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">Volver a Calendarios</button></div></header>
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-5 no-print"><form onSubmit={agregarMecanico} className="bg-white rounded-xl shadow p-5 space-y-4"><h2 className="text-xl font-bold">Añadir mecanico</h2><input value={nombreMecanico} onChange={e => setNombreMecanico(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Nombre del mecanico"/><button disabled={guardando} className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-60">+ Añadir mecanico</button><div className="pt-2 border-t space-y-3"><h3 className="font-semibold">Mecanicos activos y horarios</h3>{mecanicosActivos.length === 0 ? <p className="text-sm text-gray-500">Todavia no hay mecanicos.</p> : mecanicosActivos.map(m => <div key={m.id} className="bg-gray-50 rounded px-3 py-3 space-y-2"><div className="flex justify-between items-center"><span className="font-medium">{m.nombre}</span><button type="button" onClick={() => quitarMecanico(m)} className="text-red-600 text-sm font-semibold hover:underline">Quitar</button></div><div className="grid grid-cols-2 gap-2 text-xs"><label>Entrada<input type="time" value={normalizarHorario(m.horario).horaInicio} onChange={e => cambiarHorarioLocal(m.id, "horaInicio", e.target.value)} className="w-full border rounded px-2 py-1"/></label><label>Salida<input type="time" value={normalizarHorario(m.horario).horaFin} onChange={e => cambiarHorarioLocal(m.id, "horaFin", e.target.value)} className="w-full border rounded px-2 py-1"/></label><label>Pausa inicio<input type="time" value={normalizarHorario(m.horario).pausaInicio} onChange={e => cambiarHorarioLocal(m.id, "pausaInicio", e.target.value)} className="w-full border rounded px-2 py-1"/></label><label>Pausa fin<input type="time" value={normalizarHorario(m.horario).pausaFin} onChange={e => cambiarHorarioLocal(m.id, "pausaFin", e.target.value)} className="w-full border rounded px-2 py-1"/></label></div><div className="flex gap-3 text-xs"><label className="flex items-center gap-1"><input type="checkbox" checked={!!normalizarHorario(m.horario).sabado} onChange={e => cambiarHorarioLocal(m.id, "sabado", e.target.checked)}/> Sabado</label><label className="flex items-center gap-1"><input type="checkbox" checked={!!normalizarHorario(m.horario).domingo} onChange={e => cambiarHorarioLocal(m.id, "domingo", e.target.checked)}/> Domingo</label></div><button type="button" onClick={() => guardarHorario(m)} className="w-full bg-blue-700 text-white rounded px-3 py-1 text-sm hover:bg-blue-800">Guardar horario</button></div>)}</div></form>
+        <form onSubmit={asignarTrabajo} className="bg-white rounded-xl shadow p-5 space-y-4 lg:col-span-2"><h2 className="text-xl font-bold">Asignar vehiculo a mecanico</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><label className="space-y-1"><span className="text-sm font-semibold">Mecanico</span><select value={form.mecanicoId} onChange={e => setForm({...form, mecanicoId:e.target.value})} className="w-full border rounded px-3 py-2"><option value="">Selecciona mecanico</option>{mecanicosActivos.map(m => <option key={m.id} value={m.id}>{m.nombre} · {horarioTexto(m.horario)}</option>)}</select></label><label className="space-y-1"><span className="text-sm font-semibold">Tipo de vehiculo</span><select value={form.tipoVehiculo} onChange={e => setForm({...form, tipoVehiculo:e.target.value})} className="w-full border rounded px-3 py-2"><option value="existente">Buscar vehiculo de la aplicacion</option><option value="manual">Agregar vehiculo manual</option></select></label></div>
           {form.tipoVehiculo === "existente" ? <div className="space-y-3 rounded-lg border bg-gray-50 p-4"><label className="space-y-1 block"><span className="text-sm font-semibold">Buscar entre vehiculos de la aplicacion</span><input value={busqueda} onChange={e => setBusqueda(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Busca por matricula, OR, cliente o modelo"/></label><select value={form.vehiculoId} onChange={e => setForm({...form, vehiculoId:e.target.value})} className="w-full border rounded px-3 py-2"><option value="">Selecciona vehiculo</option>{vehiculosFiltrados.map(v => <option key={v.id} value={v.id}>{v.matricula || "Sin matricula"} | OR {v.numeroOR || "Sin OR"} {v.cliente ? `| ${v.cliente}` : ""} {v.marcaModelo ? `| ${v.marcaModelo}` : ""}</option>)}</select></div> : <div className="rounded-lg border bg-gray-50 p-4 grid grid-cols-1 md:grid-cols-2 gap-4"><input value={form.manualMatricula} onChange={e => setForm({...form, manualMatricula:e.target.value.toUpperCase()})} className="w-full border rounded px-3 py-2" placeholder="Matricula"/><input value={form.manualNumeroOR} onChange={e => setForm({...form, manualNumeroOR:e.target.value})} className="w-full border rounded px-3 py-2" placeholder="Nº OR / referencia"/><input value={form.manualCliente} onChange={e => setForm({...form, manualCliente:e.target.value})} className="w-full border rounded px-3 py-2" placeholder="Cliente"/><input value={form.manualMarcaModelo} onChange={e => setForm({...form, manualMarcaModelo:e.target.value})} className="w-full border rounded px-3 py-2" placeholder="Marca / modelo"/></div>}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><label className="space-y-1"><span className="text-sm font-semibold">Fecha y hora de inicio</span><input type="datetime-local" value={form.fechaInicio} onChange={e => setForm({...form, fechaInicio:e.target.value})} className="w-full border rounded px-3 py-2"/></label><label className="space-y-1"><span className="text-sm font-semibold">Tiempo estimado de reparacion</span><div className="flex"><input type="number" min="0.25" step="0.25" value={form.duracionHoras} onChange={e => setForm({...form, duracionHoras:e.target.value})} className="w-full border rounded-l px-3 py-2" placeholder="Ej: 2"/><span className="border border-l-0 rounded-r px-3 py-2 bg-gray-100 text-gray-700">horas</span></div><p className="text-xs text-gray-500">0.5 = media hora, 1 = una hora, 2 = dos horas.</p></label><label className="space-y-1"><span className="text-sm font-semibold">Estado</span><select value={form.estado} onChange={e => setForm({...form, estado:e.target.value})} className="w-full border rounded px-3 py-2"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select></label><label className="space-y-1"><span className="text-sm font-semibold">Notas</span><input value={form.notas} onChange={e => setForm({...form, notas:e.target.value})} className="w-full border rounded px-3 py-2" placeholder="Notas"/></label></div><button disabled={guardando} className="bg-blue-700 text-white px-5 py-2 rounded hover:bg-blue-800 disabled:opacity-60">Asignar vehiculo</button></form></section>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><label className="space-y-1"><span className="text-sm font-semibold">Fecha y hora de inicio</span><input type="datetime-local" value={form.fechaInicio} onChange={e => setForm({...form, fechaInicio:e.target.value})} className="w-full border rounded px-3 py-2"/></label><label className="space-y-1"><span className="text-sm font-semibold">Tiempo estimado de reparacion</span><div className="flex"><input type="number" min="0.25" step="0.25" value={form.duracionHoras} onChange={e => setForm({...form, duracionHoras:e.target.value})} className="w-full border rounded-l px-3 py-2" placeholder="Ej: 20"/><span className="border border-l-0 rounded-r px-3 py-2 bg-gray-100 text-gray-700">horas</span></div><p className="text-xs text-gray-500">Si son 20 h, la finalizacion se reparte segun el horario del mecanico.</p></label><label className="space-y-1"><span className="text-sm font-semibold">Estado</span><select value={form.estado} onChange={e => setForm({...form, estado:e.target.value})} className="w-full border rounded px-3 py-2"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select></label><label className="space-y-1"><span className="text-sm font-semibold">Notas</span><input value={form.notas} onChange={e => setForm({...form, notas:e.target.value})} className="w-full border rounded px-3 py-2" placeholder="Notas"/></label></div><button disabled={guardando} className="bg-blue-700 text-white px-5 py-2 rounded hover:bg-blue-800 disabled:opacity-60">Asignar vehiculo</button></form></section>
       <section className="bg-white rounded-xl shadow p-5 print-area"><div className="flex justify-between items-center mb-4 gap-3 flex-wrap"><div><h2 className="text-xl font-bold">Planificacion</h2><p className="text-sm text-gray-500 print:block hidden">Impreso el {new Date().toLocaleString("es-ES")}</p></div><div className="flex gap-2 no-print"><button onClick={imprimirPlanificacion} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Imprimir planificacion</button><button onClick={cargarDatos} className="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-800">Actualizar</button></div></div><div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"><strong>Recordatorio:</strong> cuando se finalice un trabajo, avisar al asesor por chat o presencialmente.</div>
         <div className="print-summary grid grid-cols-2 md:grid-cols-5 gap-3 mb-5"><div className="bg-gray-50 border rounded p-3"><p className="text-xs text-gray-500">Trabajos</p><p className="text-xl font-bold">{resumen.total}</p></div><div className="bg-yellow-50 border rounded p-3"><p className="text-xs text-gray-500">Pendientes</p><p className="text-xl font-bold">{resumen.pendientes}</p></div><div className="bg-blue-50 border rounded p-3"><p className="text-xs text-gray-500">En proceso</p><p className="text-xl font-bold">{resumen.enProceso}</p></div><div className="bg-green-50 border rounded p-3"><p className="text-xs text-gray-500">Terminados</p><p className="text-xl font-bold">{resumen.terminados}</p></div><div className="bg-red-50 border rounded p-3"><p className="text-xs text-gray-500">Retrasados</p><p className="text-xl font-bold">{resumen.retrasados}</p></div></div>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 print-grid">{mecanicosActivos.map(m => { const lista = trabajos.filter(t => t.mecanicoId === m.id); const horas = lista.reduce((a,t) => a + Number(t.duracionHoras || 0), 0); return <div key={m.id} className="border rounded-xl overflow-hidden print-card"><div className="bg-blue-900 text-white px-4 py-3 flex justify-between"><h3 className="font-bold text-lg">{m.nombre}</h3><span>{lista.length} trabajos · {duracionTxt(horas)}</span></div>{lista.length === 0 ? <p className="p-4 text-gray-500">Sin vehiculos asignados.</p> : lista.map(t => { const r = retrasado(t); return <article key={t.id} className={`p-4 border-t space-y-2 ${r ? "bg-red-50" : ""}`}><div className="flex justify-between gap-3 flex-wrap"><h4 className="font-bold">{t.matricula || "Sin matricula"} - OR {t.numeroOR || "Sin OR"} {t.vehiculoManual ? <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded ml-2">Manual</span> : null}</h4><span className={`text-xs border px-2 py-1 rounded-full font-bold ${badge(t.estado)}`}>{estadoTxt(t.estado)}</span></div><p className="text-sm text-gray-600">{t.cliente || "Sin cliente"} {t.marcaModelo ? `- ${t.marcaModelo}` : ""}</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm"><p>Inicio: <strong>{fechaTexto(t.fechaInicio)}</strong></p><p>Finalizacion estimada: <strong>{fechaFinTexto(t.fechaInicio, t.duracionHoras)}</strong></p><p>Tiempo estimado: <strong>{duracionTxt(t.duracionHoras)}</strong></p>{r && <p className="text-red-700 font-bold">Trabajo fuera de hora estimada</p>}</div><p className="text-sm rounded bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900"><strong>Al finalizar:</strong> avisar al asesor por chat o presencialmente.</p>{t.notas && <p className="text-sm">Notas: {t.notas}</p>}<div className="flex gap-2 flex-wrap no-print"><select value={t.estado || "pendiente"} onChange={e => cambiarEstado(t.id, e.target.value)} className="border rounded px-2 py-1 text-sm"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select><button onClick={() => borrarTrabajo(t.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">Eliminar</button></div></article>})}</div> })}</div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 print-grid">{mecanicosActivos.map(m => { const lista = trabajos.filter(t => t.mecanicoId === m.id); const horas = lista.reduce((a,t) => a + Number(t.duracionHoras || 0), 0); return <div key={m.id} className="border rounded-xl overflow-hidden print-card"><div className="bg-blue-900 text-white px-4 py-3 flex justify-between"><h3 className="font-bold text-lg">{m.nombre}</h3><span>{lista.length} trabajos · {duracionTxt(horas)}</span></div><p className="text-xs text-gray-500 px-4 pt-3">Horario: {horarioTexto(m.horario)}</p>{lista.length === 0 ? <p className="p-4 text-gray-500">Sin vehiculos asignados.</p> : lista.map(t => { const r = retrasado(t, m); return <article key={t.id} className={`p-4 border-t space-y-2 ${r ? "bg-red-50" : ""}`}><div className="flex justify-between gap-3 flex-wrap"><h4 className="font-bold">{t.matricula || "Sin matricula"} - OR {t.numeroOR || "Sin OR"} {t.vehiculoManual ? <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded ml-2">Manual</span> : null}</h4><span className={`text-xs border px-2 py-1 rounded-full font-bold ${badge(t.estado)}`}>{estadoTxt(t.estado)}</span></div><p className="text-sm text-gray-600">{t.cliente || "Sin cliente"} {t.marcaModelo ? `- ${t.marcaModelo}` : ""}</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm"><p>Inicio: <strong>{fechaTexto(t.fechaInicio)}</strong></p><p>Finalizacion estimada: <strong>{fechaFinTexto(t, m)}</strong></p><p>Tiempo estimado: <strong>{duracionTxt(t.duracionHoras)}</strong></p>{r && <p className="text-red-700 font-bold">Trabajo fuera de hora estimada</p>}</div><p className="text-sm rounded bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900"><strong>Al finalizar:</strong> avisar al asesor por chat o presencialmente.</p>{t.notas && <p className="text-sm">Notas: {t.notas}</p>}<div className="flex gap-2 flex-wrap no-print"><select value={t.estado || "pendiente"} onChange={e => cambiarEstado(t.id, e.target.value)} className="border rounded px-2 py-1 text-sm"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select><button onClick={() => borrarTrabajo(t.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">Eliminar</button></div></article>})}</div> })}</div>
       </section>
     </div>
   </main>
