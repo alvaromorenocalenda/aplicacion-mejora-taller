@@ -32,9 +32,11 @@ export default function AgendaMecanicosPage() {
   const [trabajos, setTrabajos] = useState([])
   const [nombreMecanico, setNombreMecanico] = useState("")
   const [busqueda, setBusqueda] = useState("")
-  const [mensaje, setMensaje] = useState("")
+  const [aviso, setAviso] = useState(null)
   const [guardando, setGuardando] = useState(false)
   const [form, setForm] = useState({ mecanicoId:"", vehiculoId:"", tipoVehiculo:"existente", fechaInicio: fechaInput(), duracionHoras:"1", estado:"pendiente", notas:"", manualMatricula:"", manualNumeroOR:"", manualCliente:"", manualMarcaModelo:"" })
+
+  const mostrarAviso = (tipo, titulo, texto) => setAviso({ tipo, titulo, texto })
 
   const mecanicosActivos = useMemo(() => mecanicos.filter(m => m.activo !== false), [mecanicos])
   const vehiculosFiltrados = useMemo(() => {
@@ -54,7 +56,6 @@ export default function AgendaMecanicosPage() {
 
   async function cargarDatos() {
     try {
-      setMensaje("")
       const [mecSnap, usersSnap, vehSnap, traSnap] = await Promise.all([getDocs(collection(db, "mecanicos")), getDocs(collection(db, "users")), getDocs(collection(db, "cuestionarios_cliente")), getDocs(collection(db, "agenda_mecanicos"))])
       const ocultos = new Set()
       const mapa = new Map()
@@ -72,10 +73,17 @@ export default function AgendaMecanicosPage() {
       const listaTrabajos = traSnap.docs.map(d => ({ id:d.id, ...d.data() })).sort((a,b) => (toDate(a.fechaInicio) || new Date(0)) - (toDate(b.fechaInicio) || new Date(0)))
       setMecanicos(listaMecanicos); setVehiculos(listaVehiculos); setTrabajos(listaTrabajos)
       setForm(f => ({ ...f, mecanicoId:f.mecanicoId || listaMecanicos[0]?.id || "", vehiculoId:f.vehiculoId || listaVehiculos[0]?.id || "" }))
-    } catch (e) { console.error(e); setMensaje("No se ha podido cargar la agenda.") }
+    } catch (e) { console.error(e); mostrarAviso("error", "Error", "No se ha podido cargar la agenda.") }
   }
 
-  async function agregarMecanico(e) { e.preventDefault(); const nombre = nombreMecanico.trim(); if (!nombre) return; setGuardando(true); try { await addDoc(collection(db, "mecanicos"), { nombre, activo:true, creadoEn:serverTimestamp() }); setNombreMecanico(""); await cargarDatos(); setMensaje("Mecanico añadido correctamente.") } catch (e) { console.error(e); setMensaje("No se ha podido añadir el mecanico.") } finally { setGuardando(false) } }
+  async function agregarMecanico(e) {
+    e.preventDefault(); const nombre = nombreMecanico.trim(); if (!nombre) return
+    setGuardando(true)
+    try { await addDoc(collection(db, "mecanicos"), { nombre, activo:true, creadoEn:serverTimestamp() }); setNombreMecanico(""); await cargarDatos(); mostrarAviso("ok", "Mecanico añadido", `${nombre} se ha añadido a la agenda.`) }
+    catch (e) { console.error(e); mostrarAviso("error", "Error", "No se ha podido añadir el mecanico.") }
+    finally { setGuardando(false) }
+  }
+
   async function quitarMecanico(m) { if (!confirm("Quieres quitar este mecanico de la agenda?")) return; if (m.origen === "manual") await updateDoc(doc(db, "mecanicos", m.id), { activo:false, actualizadoEn:serverTimestamp() }); else await addDoc(collection(db, "mecanicos"), { nombre:m.nombre, activo:false, origenOculto:m.origen || "usuario", uid:m.uid || m.id, creadoEn:serverTimestamp() }); await cargarDatos() }
 
   async function enviarReporteChat(vehiculo, mecanico, inicio, duracionHoras) {
@@ -91,10 +99,10 @@ export default function AgendaMecanicosPage() {
     e.preventDefault()
     const mecanico = mecanicosActivos.find(m => m.id === form.mecanicoId)
     const vehiculo = form.tipoVehiculo === "manual" ? { id:`manual-${Date.now()}`, matricula:form.manualMatricula.trim(), numeroOR:form.manualNumeroOR.trim(), cliente:form.manualCliente.trim(), marcaModelo:form.manualMarcaModelo.trim(), manual:true } : vehiculos.find(v => v.id === form.vehiculoId)
-    if (!mecanico) return setMensaje("Selecciona mecanico.")
-    if (!vehiculo || (!vehiculo.matricula && !vehiculo.numeroOR && !vehiculo.cliente)) return setMensaje("Selecciona un vehiculo o escribe uno manualmente.")
+    if (!mecanico) return mostrarAviso("error", "Falta mecanico", "Selecciona un mecanico antes de asignar el vehiculo.")
+    if (!vehiculo || (!vehiculo.matricula && !vehiculo.numeroOR && !vehiculo.cliente)) return mostrarAviso("error", "Falta vehiculo", "Selecciona un vehiculo o escribe uno manualmente.")
     const duplicado = trabajos.find(t => t.estado !== "terminado" && esMismoVehiculo(t, vehiculo))
-    if (duplicado) { setMensaje(`Ese vehiculo ya esta asignado a ${duplicado.mecanicoNombre || "un mecanico"}. No se ha duplicado.`); return }
+    if (duplicado) return mostrarAviso("aviso", "Vehiculo ya asignado", `Este vehiculo ya esta asignado a ${duplicado.mecanicoNombre || "un mecanico"}. No se ha duplicado.`)
     setGuardando(true)
     try {
       const inicio = form.fechaInicio ? new Date(form.fechaInicio) : new Date()
@@ -103,20 +111,23 @@ export default function AgendaMecanicosPage() {
       try { await enviarReporteChat(vehiculo, mecanico, inicio, duracionHoras) } catch (chatError) { console.error("No se pudo enviar reporte al chat:", chatError) }
       setForm(f => ({ ...f, duracionHoras:"1", notas:"", manualMatricula:"", manualNumeroOR:"", manualCliente:"", manualMarcaModelo:"" }))
       await cargarDatos()
-      setMensaje("Vehiculo asignado correctamente y reportado en el chat del trabajo.")
-    } catch (e) { console.error(e); setMensaje("No se ha podido asignar el vehiculo.") } finally { setGuardando(false) }
+      mostrarAviso("ok", "Vehiculo asignado", `Se ha asignado a ${mecanico.nombre}. Tiempo estimado: ${duracionTxt(duracionHoras)}. Tambien se ha reportado en el chat del trabajo si el vehiculo existe en la app.`)
+    } catch (e) { console.error(e); mostrarAviso("error", "Error", "No se ha podido asignar el vehiculo.") }
+    finally { setGuardando(false) }
   }
 
-  async function cambiarEstado(id, estado) { if (estado === "terminado") alert("Recordatorio: avisa al asesor por chat o presencialmente."); await updateDoc(doc(db, "agenda_mecanicos", id), { estado, actualizadoEn:serverTimestamp() }); await cargarDatos() }
+  async function cambiarEstado(id, estado) { if (estado === "terminado") mostrarAviso("aviso", "Trabajo terminado", "Recuerda avisar al asesor por chat o presencialmente."); await updateDoc(doc(db, "agenda_mecanicos", id), { estado, actualizadoEn:serverTimestamp() }); await cargarDatos() }
   async function borrarTrabajo(id) { if (!confirm("Quieres eliminar esta asignacion?")) return; await deleteDoc(doc(db, "agenda_mecanicos", id)); await cargarDatos() }
   const imprimirPlanificacion = () => setTimeout(() => window.print(), 100)
+  const estiloAviso = aviso?.tipo === "ok" ? "border-green-300 bg-green-50 text-green-900" : aviso?.tipo === "error" ? "border-red-300 bg-red-50 text-red-900" : "border-amber-300 bg-amber-50 text-amber-900"
+  const iconoAviso = aviso?.tipo === "ok" ? "✅" : aviso?.tipo === "error" ? "❌" : "⚠️"
 
   return <main className="min-h-screen bg-gray-100 p-6">
     <style jsx global>{`@media print{body{background:white!important}.no-print{display:none!important}.print-area{box-shadow:none!important;border:none!important;padding:0!important}.print-grid{display:block!important}.print-card{break-inside:avoid;margin-bottom:16px}}`}</style>
+    {aviso && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 no-print"><div className={`w-full max-w-md rounded-2xl border-2 p-6 shadow-2xl ${estiloAviso}`}><div className="flex items-start gap-4"><div className="text-4xl">{iconoAviso}</div><div className="flex-1"><h3 className="text-xl font-bold mb-2">{aviso.titulo}</h3><p className="text-sm leading-relaxed">{aviso.texto}</p></div></div><button onClick={() => setAviso(null)} className="mt-5 w-full rounded-lg bg-gray-900 px-4 py-2 font-semibold text-white hover:bg-black">Aceptar</button></div></div>}
     <div className="max-w-7xl mx-auto space-y-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between no-print"><div><h1 className="text-3xl font-bold text-gray-900">Agenda Mecanicos</h1><p className="text-gray-600 mt-1">Añade mecanicos y asigna vehiculos a reparar con duracion estimada.</p></div><div className="flex gap-3 flex-wrap"><button onClick={() => router.push("/calendario-citas")} className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700">Calendario de Citas</button><button onClick={() => router.push("/calendarios")} className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">Volver a Calendarios</button></div></header>
-      {mensaje && <div className="no-print bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded">{mensaje}</div>}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-5 no-print"><form onSubmit={agregarMecanico} className="bg-white rounded-xl shadow p-5 space-y-4"><h2 className="text-xl font-bold">Añadir mecanico</h2><p className="text-sm text-gray-500">Tambien se cargan automaticamente los usuarios mecanicos y los mecanicos ya asignados en trabajos.</p><input value={nombreMecanico} onChange={e => setNombreMecanico(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Nombre del mecanico"/><button disabled={guardando} className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-60">+ Añadir mecanico</button><div className="pt-2 border-t space-y-2"><h3 className="font-semibold">Mecanicos activos</h3>{mecanicosActivos.length === 0 ? <p className="text-sm text-gray-500">Todavia no hay mecanicos.</p> : mecanicosActivos.map(m => <div key={m.id} className="flex justify-between items-center bg-gray-50 rounded px-3 py-2"><span className="font-medium">{m.nombre}</span><button type="button" onClick={() => quitarMecanico(m)} className="text-red-600 text-sm font-semibold hover:underline">Quitar</button></div>)}</div></form>
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-5 no-print"><form onSubmit={agregarMecanico} className="bg-white rounded-xl shadow p-5 space-y-4"><h2 className="text-xl font-bold">Añadir mecanico</h2><input value={nombreMecanico} onChange={e => setNombreMecanico(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Nombre del mecanico"/><button disabled={guardando} className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-60">+ Añadir mecanico</button><div className="pt-2 border-t space-y-2"><h3 className="font-semibold">Mecanicos activos</h3>{mecanicosActivos.length === 0 ? <p className="text-sm text-gray-500">Todavia no hay mecanicos.</p> : mecanicosActivos.map(m => <div key={m.id} className="flex justify-between items-center bg-gray-50 rounded px-3 py-2"><span className="font-medium">{m.nombre}</span><button type="button" onClick={() => quitarMecanico(m)} className="text-red-600 text-sm font-semibold hover:underline">Quitar</button></div>)}</div></form>
         <form onSubmit={asignarTrabajo} className="bg-white rounded-xl shadow p-5 space-y-4 lg:col-span-2"><h2 className="text-xl font-bold">Asignar vehiculo a mecanico</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><label className="space-y-1"><span className="text-sm font-semibold">Mecanico</span><select value={form.mecanicoId} onChange={e => setForm({...form, mecanicoId:e.target.value})} className="w-full border rounded px-3 py-2"><option value="">Selecciona mecanico</option>{mecanicosActivos.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></label><label className="space-y-1"><span className="text-sm font-semibold">Tipo de vehiculo</span><select value={form.tipoVehiculo} onChange={e => setForm({...form, tipoVehiculo:e.target.value})} className="w-full border rounded px-3 py-2"><option value="existente">Buscar vehiculo de la aplicacion</option><option value="manual">Agregar vehiculo manual</option></select></label></div>
           {form.tipoVehiculo === "existente" ? <div className="space-y-3 rounded-lg border bg-gray-50 p-4"><label className="space-y-1 block"><span className="text-sm font-semibold">Buscar entre vehiculos de la aplicacion</span><input value={busqueda} onChange={e => setBusqueda(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Busca por matricula, OR, cliente o modelo"/></label><select value={form.vehiculoId} onChange={e => setForm({...form, vehiculoId:e.target.value})} className="w-full border rounded px-3 py-2"><option value="">Selecciona vehiculo</option>{vehiculosFiltrados.map(v => <option key={v.id} value={v.id}>{v.matricula || "Sin matricula"} | OR {v.numeroOR || "Sin OR"} {v.cliente ? `| ${v.cliente}` : ""} {v.marcaModelo ? `| ${v.marcaModelo}` : ""}</option>)}</select></div> : <div className="rounded-lg border bg-gray-50 p-4 grid grid-cols-1 md:grid-cols-2 gap-4"><input value={form.manualMatricula} onChange={e => setForm({...form, manualMatricula:e.target.value.toUpperCase()})} className="w-full border rounded px-3 py-2" placeholder="Matricula"/><input value={form.manualNumeroOR} onChange={e => setForm({...form, manualNumeroOR:e.target.value})} className="w-full border rounded px-3 py-2" placeholder="Nº OR / referencia"/><input value={form.manualCliente} onChange={e => setForm({...form, manualCliente:e.target.value})} className="w-full border rounded px-3 py-2" placeholder="Cliente"/><input value={form.manualMarcaModelo} onChange={e => setForm({...form, manualMarcaModelo:e.target.value})} className="w-full border rounded px-3 py-2" placeholder="Marca / modelo"/></div>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><label className="space-y-1"><span className="text-sm font-semibold">Fecha y hora de inicio</span><input type="datetime-local" value={form.fechaInicio} onChange={e => setForm({...form, fechaInicio:e.target.value})} className="w-full border rounded px-3 py-2"/></label><label className="space-y-1"><span className="text-sm font-semibold">Tiempo estimado de reparacion</span><div className="flex"><input type="number" min="0.25" step="0.25" value={form.duracionHoras} onChange={e => setForm({...form, duracionHoras:e.target.value})} className="w-full border rounded-l px-3 py-2" placeholder="Ej: 2"/><span className="border border-l-0 rounded-r px-3 py-2 bg-gray-100 text-gray-700">horas</span></div><p className="text-xs text-gray-500">0.5 = media hora, 1 = una hora, 2 = dos horas.</p></label><label className="space-y-1"><span className="text-sm font-semibold">Estado</span><select value={form.estado} onChange={e => setForm({...form, estado:e.target.value})} className="w-full border rounded px-3 py-2"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select></label><label className="space-y-1"><span className="text-sm font-semibold">Notas</span><input value={form.notas} onChange={e => setForm({...form, notas:e.target.value})} className="w-full border rounded px-3 py-2" placeholder="Notas"/></label></div><button disabled={guardando} className="bg-blue-700 text-white px-5 py-2 rounded hover:bg-blue-800 disabled:opacity-60">Asignar vehiculo</button></form></section>
