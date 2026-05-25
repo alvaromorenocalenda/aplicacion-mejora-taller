@@ -1,56 +1,8 @@
 "use client";
-
-function LogoTalleresCalenda() {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl bg-white/90 px-4 py-3 shadow border border-white/70">
-      <div className="relative h-12 w-16 shrink-0">
-        <div className="absolute left-1 top-5 h-5 w-14 rounded-full bg-red-600 shadow-md" />
-        <div className="absolute left-7 top-2 h-7 w-9 rounded-t-full bg-red-500 shadow" />
-        <div className="absolute left-4 top-9 h-3 w-3 rounded-full bg-slate-950 ring-2 ring-white" />
-        <div className="absolute right-1 top-9 h-3 w-3 rounded-full bg-slate-950 ring-2 ring-white" />
-        <div className="absolute left-2 top-0 h-12 w-16 rounded-full border-[5px] border-slate-950 border-b-transparent border-r-transparent rotate-[-12deg] opacity-90" />
-      </div>
-      <div className="leading-none">
-        <p className="text-xs font-black tracking-[0.22em] text-slate-900">TALLERES</p>
-        <p className="text-2xl font-black tracking-tight text-red-600">CALENDA</p>
-      </div>
-    </div>
-  );
-}
-
-function LogoGrupoCalenda() {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl bg-white/90 px-4 py-3 shadow border border-white/70">
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-700 to-red-500 text-white shadow-lg">
-        <span className="font-serif text-2xl font-black tracking-tighter">CA</span>
-      </div>
-      <div className="leading-tight">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Grupo</p>
-        <p className="text-lg font-black text-slate-900">Calenda</p>
-      </div>
-    </div>
-  );
-}
-
-function LogoToyota() {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl bg-white/90 px-4 py-3 shadow border border-white/70">
-      <div className="relative h-12 w-16 shrink-0">
-        <div className="absolute inset-x-1 top-2 h-8 rounded-full border-4 border-slate-400" />
-        <div className="absolute left-5 top-1 h-10 w-7 rounded-full border-4 border-slate-400" />
-        <div className="absolute left-2 right-2 top-4 h-4 rounded-full border-4 border-slate-400" />
-      </div>
-      <p className="text-2xl font-black tracking-tight text-red-600">TOYOTA</p>
-    </div>
-  );
-}
-
-export default function BrandLogos({ compact = false }) {
-  return (
-    <div className={`grid gap-3 ${compact ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 md:grid-cols-3"}`}>
-      <LogoTalleresCalenda />
-      <LogoGrupoCalenda />
-      <LogoToyota />
-    </div>
-  );
-}
+export const LOGO_TALLERES_CALENDA="data:image/webp;base64,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";
+export const LOGO_GRUPO_CALENDA="data:image/webp;base64,UklGRloEAABXRUJQVlA4IE4EAACQEwCdASo8ADwAPsFWpU6npCMiKBQLUPAYCWwAuGPCv7/JeaVWf8PsOJtrj3o92z/mA6Hm8q+gB0tPlK3gh99sif31iKHPjgJUEMx8mf1kUUgnnKXnuY/Ualv9SN68T4vhb12Fh2e8gmsVgJMCkXOda9QCP5bm0pu9O8SauhPPgofeHhzLIXqaMirRXvdwqUA/vJRmmz/bXxjCwydyez+susFpEQAA/vspIXJn+MOP8k/WUGjrJrdC5a6roObwEe7xuBeASzkC0b6i1OwDCLwVRToG+htE8bRQZglMH0Qe3jrP3tDQ7U/s3Jy9P0WlOL7QWxye7YToNXPLR6kAO3Jfwn/d1w9DtTyMW+90kcxJ8NMqIyRyRy4YCojOS0lPKfVT2aPHp5Ghgi6rWepr3WDjVY0GneEYgrCsniUbLmOw+iHVimuGLBJ5vdfRxYoFKc4wx7uU5c/aZeBxj6au1pfLmwN+4xwsve/Q7Sv8KnEJecmPAiy767BpHXAnhfGrUl8FvYTopU3wnCdjHSva3uqnojArBTq037R2E1mdJDTmNtT9W5iqIbBGjf6PzbSgJlK9PhE4yk29XSoJu4Q6wQJ6Yu0M8Er8HO3a5m6eq6M5C6yMj5+yZohftCVItTkrR9ZXlGwzmaGDT/96wR/geLZjz0TKedi1ADCOMPn/5m1mEmFcUt3n/IMhVknM4MLM5iGHWwqRwF/14O4bugG/77abEPHdkdHcGC7rXqy72spIJTgSmWplbeYBthteOQFMIrsX8voIrCBwuChfunNsZ5BebKJFkQ/Hk8Kq7djIssIy7zHrvMd7/p1OrDeHAh+VRViCf//L51UUXWPrvpMSrpNTryT0kDjr39or3pMzCJhStlr15EJuWH8mdUO82U/4YB7eAzcH1xAta6WoE1Nc/FFgvknzfNfvSgHS+fsynoXJBKMV/LSNZGyP1lnC7t87eA4y/asSezQMVnWF0W73JOXJYdUjQphFL5CpeKUHLl+ntUa3Q+shw7Y9DOkb4Lq5IhxnGPMXLlv6+FjFsHGytvQuDBcDdlnEARlvz/ybujeC55ndtTrZIJR40/nKAItcB3jnkecoB5+j8wjqOXBDMSHAe6Pp3z19pdIqyWPz7s+4qG3RfwwQPOg8fcqESPk2QhI864tkIEDF+rWQJ36P22OT3uvzqW5vZftp5dirESCT9/NuvnZkSmlUP06tGU5ut3E4L88LwidkYxva9wtObNHxcu03t4NgxzrMv0eBH5QxGJ/9zGCn8+vE1B/T2ePCtTHKsB8rZJgaFPd4TlNH667E7Y/ea919xfPyaEIB9dMw8AsRoVQJdUPDyHK0+qixQbqNhhwch+LI/zmBOcQAnse7vfMH//Ouk8qvvMsN7WnrF1sRHZQ9hb2KVyUtD9GGn+MeFZr5f/6yL0D7Drf/4RLppxWtKWxPH9kplhxrWFr7ZgHTE0cZKUB11ZSrxAAA";
+export const LOGO_TOYOTA="data:image/webp;base64,UklGRhwCAABXRUJQVlA4IBACAADwCgCdASo8ADwAPsFWokynpKMiKAwA8BgJYwDUnfR6ZnvJH/IfY5gHcMGTKrxpHkfhMPbJHYuu0kIuUEzrBg92ibQDshYheRrgyiWJxeA4sTD1wdlLr6dpY+Zjyl25nYAA/vj0ZFtr9kxXi1SGUJCeZaUhnKezHsSg1kWVlzWS3UtosLq5yGudLS5y7evbexhUKrKrLEIbEBGJnwJE2RAqAJyGLPld33ugpIzQKTKvcD1Z3/ykPzorSVdWg/mJaCQmATHZACnaYcisMcUzzrHb4coYZ6vNhW2AsATyjBD5Bf/WyRnlv0SzNM0yY3Tft5AzbYPzup9m9PMOayjV4wbYR6tZdosztSDuU7ECDUjuvAzcHoTnIe6f5FOnZqOAZ0+aDAKXMa/Ov8Y9/y05XSFZ86zjT+NdEUPYiN+bCoLhCe6MKKRGy8Xz+T/AJo3lHyQ1cKV7ZBfNVp1w59cbR+X6gAczyvcV0S4gZK2bh6JLoTUhh7Gmm7PWOJ5qB4RXDh2NI8WAd34E5rqV+n7YW/U8nr1OMlviIqke6eGHOtKj6tvucKLJXDyXWvsIjHPJFH+vi22vvgCrjceiWQNwJs8DWWK23EHmdDISHB1Se6rzip+P3HspoaxjnvY/nsQ6kuoaewVHvFlJHgMe5cRLyQ7x13qLymPoKzsoBNRo1JmPnQfsfcFR6S3vqwYkWso8wAA=";
+const imgs=[['Talleres Calenda',LOGO_TALLERES_CALENDA],['Grupo Calenda',LOGO_GRUPO_CALENDA],['Toyota',LOGO_TOYOTA]];
+function LogoCard({src,alt}){return <div className="flex items-center justify-center rounded-2xl bg-white/95 px-4 py-3 shadow border border-white/70"><img src={src} alt={alt} className="max-h-28 w-auto object-contain"/></div>}
+export function MiniBrandLogo({className=""}){return <div className={`flex items-center gap-3 ${className}`}><img src={LOGO_TALLERES_CALENDA} alt="Talleres Calenda" className="h-12 w-auto rounded-lg bg-white object-contain shadow-sm"/><div className="min-w-0 leading-tight"><p className="truncate text-sm font-black text-slate-900">Talleres Calenda</p><p className="truncate text-xs text-slate-500">Gestión interna de taller</p></div></div>}
+export default function BrandLogos({compact=false}){return <div className={`grid gap-3 ${compact?"grid-cols-1 sm:grid-cols-3":"grid-cols-1 md:grid-cols-3"}`}>{imgs.map(([alt,src])=><LogoCard key={alt} src={src} alt={alt} />)}</div>}
