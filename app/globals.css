@@ -2,3 +2,203 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Ajustes generales para que la app funcione mejor en móvil y tablet */
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+/* Las tablas grandes no rompen la pantalla: se desplazan en horizontal */
+table {
+  border-collapse: collapse;
+}
+
+.overflow-x-auto,
+[class*="overflow-x-auto"] {
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1024px) {
+  main {
+    width: 100%;
+    padding: 1rem !important;
+  }
+
+  header {
+    gap: 1rem;
+  }
+
+  h1 {
+    font-size: 1.75rem !important;
+    line-height: 2.1rem !important;
+  }
+
+  h2 {
+    font-size: 1.35rem !important;
+    line-height: 1.8rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    font-size: 15px;
+  }
+
+  main {
+    padding: 0.75rem !important;
+  }
+
+  /* En móvil, los encabezados y barras de acciones pasan a una columna */
+  header,
+  header > div,
+  main > div > header,
+  main > div > section > div:first-child {
+    max-width: 100%;
+  }
+
+  /* Botoneras que antes usaban space-x se adaptan y no se salen de pantalla */
+  .space-x-2,
+  .space-x-3,
+  .space-x-4,
+  .space-x-5 {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+
+  .space-x-2 > :not([hidden]) ~ :not([hidden]),
+  .space-x-3 > :not([hidden]) ~ :not([hidden]),
+  .space-x-4 > :not([hidden]) ~ :not([hidden]),
+  .space-x-5 > :not([hidden]) ~ :not([hidden]) {
+    margin-left: 0 !important;
+  }
+
+  /* Los botones y campos son más cómodos para pulsar con el dedo */
+  button,
+  a[class*="px-"],
+  label[class*="px-"] {
+    min-height: 42px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px !important; /* evita zoom automático en iPhone */
+  }
+
+  /* Las tarjetas con acciones a la derecha se apilan mejor */
+  .flex.justify-between.items-center {
+    align-items: flex-start !important;
+  }
+
+  /* Las barras fijas ocupan mucho en móvil; mejor comportamiento natural */
+  .sticky {
+    position: static !important;
+  }
+}
+
+@media (max-width: 640px) {
+  h1 {
+    font-size: 1.5rem !important;
+    line-height: 1.9rem !important;
+  }
+
+  h2 {
+    font-size: 1.2rem !important;
+    line-height: 1.6rem !important;
+  }
+
+  /* En móvil los formularios y paneles tienen menos aire para ganar espacio */
+  .p-8,
+  .p-6,
+  .p-5,
+  .p-4 {
+    padding: 0.9rem !important;
+  }
+
+  .gap-6,
+  .gap-5,
+  .gap-4 {
+    gap: 0.75rem !important;
+  }
+
+  .rounded-xl {
+    border-radius: 0.75rem !important;
+  }
+
+  /* Las tablas de planificación mantienen lectura horizontal */
+  table {
+    min-width: 680px;
+  }
+
+  /* Los botones principales se distribuyen en varias líneas sin salirse */
+  .flex {
+    max-width: 100%;
+  }
+
+  /* En listados largos, los botones no aplastan el texto */
+  .whitespace-nowrap {
+    white-space: normal !important;
+  }
+}
+
+@media (max-width: 480px) {
+  main {
+    padding: 0.5rem !important;
+  }
+
+  button,
+  a[class*="px-"],
+  label[class*="px-"] {
+    width: auto;
+    max-width: 100%;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+  }
+
+  .text-3xl,
+  .text-2xl {
+    word-break: break-word;
+  }
+}
