@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../lib/firebase";
-import BrandLogos from "../../components/BrandLogos";
+import BrandLogos, { LOGO_TALLERES_CALENDA } from "../../components/BrandLogos";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,23 +23,32 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-red-950 p-4">
-      <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(239,68,68,.45), transparent 28rem), radial-gradient(circle at 80% 10%, rgba(59,130,246,.45), transparent 26rem)" }} />
-      <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
-        <section className="text-white space-y-5">
-          <div>
-            <p className="text-sm uppercase tracking-[0.35em] text-blue-200 font-bold">Gestión de taller</p>
-            <h1 className="mt-3 text-4xl sm:text-5xl font-black leading-tight">Aplicación Mejora Taller</h1>
-            <p className="mt-3 text-white/75 text-lg">Diagnósticos, recambios, agenda de mecánicos, imágenes y chats en un único panel.</p>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 via-blue-50 to-red-50 p-4 sm:p-6">
+      <div className="absolute inset-0 opacity-80" style={{ backgroundImage: "radial-gradient(circle at 18% 20%, rgba(239,68,68,.18), transparent 28rem), radial-gradient(circle at 84% 12%, rgba(37,99,235,.20), transparent 30rem), linear-gradient(135deg, rgba(255,255,255,.92), rgba(239,246,255,.72))" }} />
+      <div className="absolute left-0 top-0 h-72 w-72 rounded-full bg-red-200/30 blur-3xl" />
+      <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-blue-300/30 blur-3xl" />
+
+      <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+        <section className="space-y-6 rounded-[2rem] border border-white/70 bg-white/55 p-6 sm:p-8 shadow-xl backdrop-blur-md">
+          <div className="flex items-center gap-4">
+            <img src={LOGO_TALLERES_CALENDA} alt="Talleres Calenda" className="h-20 w-auto rounded-2xl bg-white object-contain p-2 shadow" />
+            <div>
+              <p className="text-sm uppercase tracking-[0.35em] text-blue-800 font-black">Gestión de taller</p>
+              <p className="text-sm font-semibold text-slate-500">Talleres Calenda · Grupo Calenda · Toyota</p>
+            </div>
           </div>
+
+          <div>
+            <h1 className="mt-3 text-4xl sm:text-5xl font-black leading-tight !text-slate-950 drop-shadow-sm">Aplicación Mejora Taller</h1>
+            <p className="mt-4 max-w-xl text-slate-700 text-lg leading-relaxed">Diagnósticos, recambios, agenda de mecánicos, imágenes y chats en un único panel interno.</p>
+          </div>
+
           <BrandLogos />
         </section>
 
-        <section className="w-full max-w-md lg:ml-auto bg-white/95 rounded-3xl shadow-2xl border border-white/70 overflow-hidden backdrop-blur p-6 sm:p-8">
+        <section className="w-full max-w-md lg:ml-auto bg-white/95 rounded-3xl shadow-2xl border border-white/80 overflow-hidden backdrop-blur p-6 sm:p-8">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-red-600 to-blue-700 text-white shadow-lg">
-              <span className="text-2xl font-black">TC</span>
-            </div>
+            <img src={LOGO_TALLERES_CALENDA} alt="Talleres Calenda" className="mx-auto mb-4 h-24 w-auto rounded-2xl bg-white object-contain p-2 shadow-md" />
             <h2 className="text-3xl font-extrabold text-gray-900">Iniciar sesión</h2>
             <p className="text-sm text-gray-500 mt-1">Acceso interno del taller</p>
           </div>
