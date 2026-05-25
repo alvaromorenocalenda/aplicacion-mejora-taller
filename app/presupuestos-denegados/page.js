@@ -1,26 +1,31 @@
-// app/presupuestos-denegados/page.js
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  deleteDoc,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-
+import { collection, query, where, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { deleteChatTrabajo } from "../../lib/chatCleanup";
 import { subscribeUserProfile } from "../../lib/userProfile";
 
-// clave para confirmar borrado
 const CONFIRM_KEY = "CALENDABORRAR";
-// clave para reabrir presupuesto
 const REOPEN_KEY = "CALENDAREABRIR";
+const pad = (n) => String(n).padStart(2, "0");
+const mesActual = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+};
+const toDate = (v) => v?.toDate?.() ? v.toDate() : v ? new Date(v) : null;
+const fechaTexto = (v) => {
+  const d = toDate(v);
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("es-ES") : "Sin fecha";
+};
+const fechaFiltro = (item) => toDate(item.fechaDenegado || item.denegadoEn || item.actualizadoEn || item.creadoEn || item.createdAt);
+const enMes = (item, mes) => {
+  if (!mes) return true;
+  const d = fechaFiltro(item);
+  if (!d || Number.isNaN(d.getTime())) return false;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}` === mes;
+};
 
 export default function PresupuestosDenegadosPage() {
   const router = useRouter();
@@ -28,57 +33,37 @@ export default function PresupuestosDenegadosPage() {
   const [cuestionarios, setCuestionarios] = useState([]);
   const [checklists, setChecklists] = useState([]);
   const [recambios, setRecambios] = useState([]);
-
-  // estados de búsqueda para cada sección
   const [searchCq, setSearchCq] = useState("");
   const [searchCh, setSearchCh] = useState("");
   const [searchR, setSearchR] = useState("");
-
+  const [mes, setMes] = useState(mesActual());
   const [userRol, setUserRol] = useState("ADMIN");
   const [onlyMine, setOnlyMine] = useState(true);
-
-  // ✅ Evita que el rol pise el checkbox tras que el usuario haga click
   const didInitOnlyMine = useRef(false);
+
+  const irASeccion = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.history.replaceState(null, "", `#${id}`);
+  };
 
   const matchTrabajo = (item, term) => {
     const t = (term || "").toLowerCase();
-    return (
-      (item?.datos?.matricula || "").toLowerCase().includes(t) ||
-      (item?.datos?.numeroOR || "").toLowerCase().includes(t) ||
-      (item?.datos?.nombreCliente || "").toLowerCase().includes(t)
-    );
+    return (item?.datos?.matricula || "").toLowerCase().includes(t) || (item?.datos?.numeroOR || "").toLowerCase().includes(t) || (item?.datos?.nombreCliente || "").toLowerCase().includes(t);
   };
-
-  const trabajoLabel = (item) =>
-    `${item?.datos?.matricula || ""} — ${item?.datos?.numeroOR || ""} — ${
-      item?.datos?.nombreCliente || ""
-    }`;
+  const trabajoLabel = (item) => `${item?.datos?.matricula || ""} — ${item?.datos?.numeroOR || ""} — ${item?.datos?.nombreCliente || ""}`;
 
   useEffect(() => {
-    if (!auth.currentUser) {
-      router.replace("/login");
-      return;
-    }
+    if (!auth.currentUser) { router.replace("/login"); return; }
     const u = auth.currentUser;
     const unsub = subscribeUserProfile(u.uid, (p) => {
       const rol = (p?.rol || "ADMIN").toUpperCase();
       setUserRol(rol);
-
-      // Si NO es mecánico, siempre se desactiva (no tiene sentido el filtro)
-      if (rol !== "MECANICO") {
-        didInitOnlyMine.current = true;
-        setOnlyMine(false);
-        return;
-      }
-
-      // Si es mecánico, sólo poner el valor por defecto 1 vez
-      if (!didInitOnlyMine.current) {
-        didInitOnlyMine.current = true;
-        setOnlyMine(true);
-      }
+      if (rol !== "MECANICO") { didInitOnlyMine.current = true; setOnlyMine(false); return; }
+      if (!didInitOnlyMine.current) { didInitOnlyMine.current = true; setOnlyMine(true); }
     });
     (async () => {
-      // cargar cada colección filtrada por denegado
+      setLoading(true);
       const [cqSnap, chSnap, rSnap] = await Promise.all([
         getDocs(query(collection(db, "cuestionarios_cliente"), where("estadoPresupuesto", "==", "DENEGADO"))),
         getDocs(query(collection(db, "checklists"), where("estadoPresupuesto", "==", "DENEGADO"))),
@@ -86,8 +71,7 @@ export default function PresupuestosDenegadosPage() {
       ]);
       const cq = cqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const ch = chSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const r  = rSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
+      const r = rSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       if (userRol === "MECANICO" && onlyMine) {
         const allowed = new Set(cq.filter(x => x.asignadoMecanicoUid === u.uid).map(x => x.id));
         setCuestionarios(cq.filter(x => allowed.has(x.id)));
@@ -104,245 +88,83 @@ export default function PresupuestosDenegadosPage() {
   }, [router, userRol, onlyMine]);
 
   const confirmAndDeleteAll = async (itemId) => {
-    // pide clave
     const clave = prompt("Introduce la clave de confirmación para borrar:");
-    if (clave !== CONFIRM_KEY) {
-      alert("Clave incorrecta. Operación cancelada.");
-      return;
-    }
-    // Borrar chat asociado (si existe)
+    if (clave !== CONFIRM_KEY) return alert("Clave incorrecta. Operación cancelada.");
     await deleteChatTrabajo(db, itemId);
-
-    // confirmaciones encadenadas
-    if (confirm("¿Deseas borrar el cuestionario cliente asociado?")) {
-      await deleteDoc(doc(db, "cuestionarios_cliente", itemId));
-      setCuestionarios(prev => prev.filter(c => c.id !== itemId));
-    }
-    if (confirm("¿Deseas borrar la checklist asociada?")) {
-      await deleteDoc(doc(db, "checklists", itemId));
-      setChecklists(prev => prev.filter(c => c.id !== itemId));
-    }
-    if (confirm("¿Deseas borrar los recambios asociados?")) {
-      await deleteDoc(doc(db, "recambios", itemId));
-      setRecambios(prev => prev.filter(c => c.id !== itemId));
-    }
+    if (confirm("¿Deseas borrar el cuestionario cliente asociado?")) { await deleteDoc(doc(db, "cuestionarios_cliente", itemId)); setCuestionarios(prev => prev.filter(c => c.id !== itemId)); }
+    if (confirm("¿Deseas borrar la checklist asociada?")) { await deleteDoc(doc(db, "checklists", itemId)); setChecklists(prev => prev.filter(c => c.id !== itemId)); }
+    if (confirm("¿Deseas borrar los recambios asociados?")) { await deleteDoc(doc(db, "recambios", itemId)); setRecambios(prev => prev.filter(c => c.id !== itemId)); }
   };
 
   async function handleReopenPresupuesto(checklistId) {
-  const clave = prompt("Introduce la clave para reabrir el presupuesto:");
-  if (clave !== REOPEN_KEY) {
-    alert("Clave incorrecta. Operación cancelada.");
-    return;
-  }
-  try {
-    // 1) volver a marcar pendiente en las tres colecciones
-    await updateDoc(doc(db, "cuestionarios_cliente", checklistId), {
-      estadoPresupuesto: "PENDIENTE_PRESUPUESTO",
-    });
-    await updateDoc(doc(db, "checklists", checklistId), {
-      estadoPresupuesto: "PENDIENTE_PRESUPUESTO",
-    });
-    // si no hay recambios da error, lo ignoramos
+    const clave = prompt("Introduce la clave para reabrir el presupuesto:");
+    if (clave !== REOPEN_KEY) return alert("Clave incorrecta. Operación cancelada.");
     try {
-      await updateDoc(doc(db, "recambios", checklistId), {
-        estadoPresupuesto: "PENDIENTE_PRESUPUESTO",
-      });
-    } catch {}
-
-    // 2) actualizar el estado local para que desaparezca de “denegados”
-    setCuestionarios((prev) => prev.filter((c) => c.id !== checklistId));
-    setChecklists((prev) => prev.filter((c) => c.id !== checklistId));
-    setRecambios((prev) => prev.filter((c) => c.id !== checklistId));
-
-    alert("Presupuesto reabierto correctamente.");
-  } catch (err) {
-    console.error(err);
-    alert("Error al reabrir: " + err.message);
+      await updateDoc(doc(db, "cuestionarios_cliente", checklistId), { estadoPresupuesto: "PENDIENTE_PRESUPUESTO" });
+      try { await updateDoc(doc(db, "checklists", checklistId), { estadoPresupuesto: "PENDIENTE_PRESUPUESTO" }); } catch {}
+      try { await updateDoc(doc(db, "recambios", checklistId), { estadoPresupuesto: "PENDIENTE_PRESUPUESTO" }); } catch {}
+      setCuestionarios((prev) => prev.filter((c) => c.id !== checklistId));
+      setChecklists((prev) => prev.filter((c) => c.id !== checklistId));
+      setRecambios((prev) => prev.filter((c) => c.id !== checklistId));
+      alert("Presupuesto reabierto correctamente.");
+    } catch (err) {
+      console.error(err);
+      alert("Error al reabrir: " + err.message);
+    }
   }
-}
+
+  const cqFiltrados = useMemo(() => cuestionarios.filter(c => enMes(c, mes) && matchTrabajo(c, searchCq)), [cuestionarios, mes, searchCq]);
+  const chFiltrados = useMemo(() => checklists.filter(c => enMes(c, mes) && matchTrabajo(c, searchCh)), [checklists, mes, searchCh]);
+  const rFiltrados = useMemo(() => recambios.filter(c => enMes(c, mes) && matchTrabajo(c, searchR)), [recambios, mes, searchR]);
 
   if (loading) return <p className="p-6 text-center">Cargando…</p>;
 
-  return (
-    <main className="max-w-4xl mx-auto p-6 space-y-8">
-      <h1 className="text-3xl font-bold">Presupuestos Denegados</h1>
-      <button
-        onClick={() => router.push("/dashboard")}
-        className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-      >
-        ← Volver al Dashboard
-      </button>
+  const renderItem = (c, tipo) => {
+    const rutaVer = tipo === "cliente" ? `/cliente-form/${encodeURIComponent(c.id)}?view=true` : tipo === "checklist" ? `/diagnostico-form/${encodeURIComponent(c.id)}/detalle` : `/recambios-form/${encodeURIComponent(c.id)}/detalle`;
+    return <div key={c.id} className="flex justify-between items-center bg-red-100 p-4 mb-2 rounded gap-3">
+      <div><p className="font-medium">{trabajoLabel(c)}</p><p className="text-xs text-gray-600">Denegado/fecha: {fechaTexto(fechaFiltro(c))}</p></div>
+      <div className="space-x-2 whitespace-nowrap">
+        <button onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(c.id)}`)} className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700">Chat</button>
+        <button onClick={() => router.push(rutaVer)} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Ver</button>
+        <button onClick={() => handleReopenPresupuesto(c.id)} className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Reabrir</button>
+        <button onClick={() => confirmAndDeleteAll(c.id)} className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">Eliminar</button>
+      </div>
+    </div>;
+  };
 
-      {userRol === "MECANICO" && (
-        <div className="flex items-center gap-2 text-sm text-gray-700">
-          <input
-            id="onlyMineDeny"
-            type="checkbox"
-            checked={onlyMine}
-            onChange={(e) => setOnlyMine(e.target.checked)}
-          />
-          <label htmlFor="onlyMineDeny">Ver sólo mis trabajos asignados</label>
-        </div>
-      )}
+  return <main className="max-w-5xl mx-auto p-6 space-y-8">
+    <div className="flex justify-between items-center gap-3 flex-wrap">
+      <div><h1 className="text-3xl font-bold">Presupuestos Denegados</h1><p className="text-gray-600">Por defecto se muestran los denegados del mes actual.</p></div>
+      <button onClick={() => router.push("/dashboard")} className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">← Volver al Dashboard</button>
+    </div>
 
-      {/* Cuestionarios Cliente */}
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">Cuestionarios Cliente</h2>
-        {/* búsqueda */}
-        <div className="relative mb-4">
-          <input
-            type="text"
-            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
-            value={searchCq}
-            onChange={e => setSearchCq(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300"
-          />
-        </div>
-        {cuestionarios.filter(c => matchTrabajo(c, searchCq)).length === 0 ? (
-          <p className="text-gray-600">No hay cuestionarios denegados.</p>
-        ) : (
-          cuestionarios
-            .filter(c => matchTrabajo(c, searchCq))
-            .map(c => {
-              return (
-                <div
-                  key={c.id}
-                  className="flex justify-between items-center bg-red-100 p-4 mb-2 rounded"
-                >
-                  <p className="font-medium">{trabajoLabel(c)}</p>
-                  <div className="space-x-2">
-                    <button
-                      onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(c.id)}`)}
-                      className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
-                    >Chat</button>
-                    <button
-                      onClick={() => router.push(`/cliente-form/${encodeURIComponent(c.id)}?view=true`)}
-                      className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                    >Ver</button>
+    <div className="flex flex-wrap gap-3 bg-white rounded-xl shadow p-4 items-end sticky top-3 z-10">
+      <button onClick={() => irASeccion("cuestionarios-denegados")} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Ir a cuestionarios cliente</button>
+      <button onClick={() => irASeccion("checklists-denegadas")} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Ir a checklist denegadas</button>
+      <button onClick={() => irASeccion("recambios-denegados")} className="px-4 py-2 bg-blue-800 text-white rounded hover:bg-blue-900">Ir a recambios denegados</button>
+      <label className="ml-auto text-sm font-semibold">Filtro por mes<input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="block border rounded px-3 py-2 mt-1" /></label>
+      <button onClick={() => setMes(mesActual())} className="px-4 py-2 bg-green-600 text-white rounded">Mes actual</button>
+      <button onClick={() => setMes("")} className="px-4 py-2 bg-gray-600 text-white rounded">Ver todos</button>
+    </div>
 
-                        <button
-                        onClick={() => handleReopenPresupuesto(c.id)}
-                        className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
-                        >
-                        Reabrir
-                        </button>
+    {userRol === "MECANICO" && <div className="flex items-center gap-2 text-sm text-gray-700"><input id="onlyMineDeny" type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /><label htmlFor="onlyMineDeny">Ver sólo mis trabajos asignados</label></div>}
 
-                    <button
-                      onClick={() => confirmAndDeleteAll(c.id)}
-                      className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                    >Eliminar</button>
-                  </div>
-                </div>
-              );
-            })
-        )}
-      </section>
+    <section id="cuestionarios-denegados" className="scroll-mt-28">
+      <h2 className="text-2xl font-semibold mb-4">Cuestionarios Cliente ({cqFiltrados.length})</h2>
+      <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchCq} onChange={e => setSearchCq(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" />
+      {cqFiltrados.length === 0 ? <p className="text-gray-600">No hay cuestionarios denegados en este periodo.</p> : cqFiltrados.map(c => renderItem(c, "cliente"))}
+    </section>
 
-      {/* Checklists */}
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">Checklists</h2>
-        {/* búsqueda */}
-        <div className="relative mb-4">
-          <input
-            type="text"
-            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
-            value={searchCh}
-            onChange={e => setSearchCh(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300"
-          />
-        </div>
-        {checklists.filter(c => matchTrabajo(c, searchCh)).length === 0 ? (
-          <p className="text-gray-600">No hay checklists denegadas.</p>
-        ) : (
-          checklists
-            .filter(c => matchTrabajo(c, searchCh))
-            .map(c => {
-              return (
-                <div
-                  key={c.id}
-                  className="flex justify-between items-center bg-red-100 p-4 mb-2 rounded"
-                >
-                  <p className="font-medium">{trabajoLabel(c)}</p>
-                  <div className="space-x-2">
-                    <button
-                      onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(c.id)}`)}
-                      className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
-                    >Chat</button>
-                    <button
-                      onClick={() => router.push(`/diagnostico-form/${encodeURIComponent(c.id)}/detalle`)}
-                      className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                    >Ver</button>
+    <section id="checklists-denegadas" className="scroll-mt-28">
+      <h2 className="text-2xl font-semibold mb-4">Checklists ({chFiltrados.length})</h2>
+      <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchCh} onChange={e => setSearchCh(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" />
+      {chFiltrados.length === 0 ? <p className="text-gray-600">No hay checklists denegadas en este periodo.</p> : chFiltrados.map(c => renderItem(c, "checklist"))}
+    </section>
 
-                        <button
-                        onClick={() => handleReopenPresupuesto(c.id)}
-                        className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
-                        >
-                        Reabrir
-
-                        </button>
-                    <button
-                      onClick={() => confirmAndDeleteAll(c.id)}
-                      className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                    >Eliminar</button>
-                  </div>
-                </div>
-              );
-            })
-        )}
-      </section>
-
-      {/* Recambios */}
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">Recambios</h2>
-        {/* búsqueda */}
-        <div className="relative mb-4">
-          <input
-            type="text"
-            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
-            value={searchR}
-            onChange={e => setSearchR(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300"
-          />
-        </div>
-        {recambios.filter(c => matchTrabajo(c, searchR)).length === 0 ? (
-          <p className="text-gray-600">No hay recambios denegados.</p>
-        ) : (
-          recambios
-            .filter(c => matchTrabajo(c, searchR))
-            .map(c => {
-              return (
-                <div
-                  key={c.id}
-                  className="flex justify-between items-center bg-red-100 p-4 mb-2 rounded"
-                >
-                  <p className="font-medium">{trabajoLabel(c)}</p>
-                  <div className="space-x-2">
-                    <button
-                      onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(c.id)}`)}
-                      className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
-                    >Chat</button>
-                    <button
-                      onClick={() => router.push(`/recambios-form/${encodeURIComponent(c.id)}/detalle`)}
-                      className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                    >Ver</button>
-
-                        <button
-                        onClick={() => handleReopenPresupuesto(c.id)}
-                        className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
-                        >
-                        Reabrir
-                        </button>
-
-                    <button
-                      onClick={() => confirmAndDeleteAll(c.id)}
-                      className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                    >Eliminar</button>
-                  </div>
-                </div>
-              );
-            })
-        )}
-      </section>
-    </main>
-  );
+    <section id="recambios-denegados" className="scroll-mt-28">
+      <h2 className="text-2xl font-semibold mb-4">Recambios ({rFiltrados.length})</h2>
+      <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchR} onChange={e => setSearchR(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" />
+      {rFiltrados.length === 0 ? <p className="text-gray-600">No hay recambios denegados en este periodo.</p> : rFiltrados.map(c => renderItem(c, "recambios"))}
+    </section>
+  </main>;
 }
