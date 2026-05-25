@@ -40,6 +40,12 @@ export default function TrabajosFinalizadosPage() {
   const [onlyMine, setOnlyMine] = useState(true);
   const didInitOnlyMine = useRef(false);
 
+  const irASeccion = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.history.replaceState(null, "", `#${id}`);
+  };
+
   const matchTrabajo = (item, term) => {
     const t = (term || "").toLowerCase();
     return (item?.datos?.matricula || "").toLowerCase().includes(t) || (item?.datos?.numeroOR || "").toLowerCase().includes(t) || (item?.datos?.nombreCliente || "").toLowerCase().includes(t);
@@ -113,9 +119,9 @@ export default function TrabajosFinalizadosPage() {
       <button onClick={() => router.push("/dashboard")} className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">← Volver al Dashboard</button>
     </div>
 
-    <div className="flex flex-wrap gap-3 bg-white rounded-xl shadow p-4 items-end">
-      <button onClick={() => router.push("/diagnostico-form")} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Ir a checklist finalizadas</button>
-      <button onClick={() => router.push("/recambios-form")} className="px-4 py-2 bg-blue-800 text-white rounded hover:bg-blue-900">Ir a recambios finalizados</button>
+    <div className="flex flex-wrap gap-3 bg-white rounded-xl shadow p-4 items-end sticky top-3 z-10">
+      <button onClick={() => irASeccion("checklists-finalizadas")} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Ir a checklist finalizadas</button>
+      <button onClick={() => irASeccion("recambios-finalizados")} className="px-4 py-2 bg-blue-800 text-white rounded hover:bg-blue-900">Ir a recambios finalizados</button>
       <label className="ml-auto text-sm font-semibold">Filtro por mes<input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="block border rounded px-3 py-2 mt-1" /></label>
       <button onClick={() => setMes(mesActual())} className="px-4 py-2 bg-green-600 text-white rounded">Mes actual</button>
       <button onClick={() => setMes("")} className="px-4 py-2 bg-gray-600 text-white rounded">Ver todos</button>
@@ -123,19 +129,19 @@ export default function TrabajosFinalizadosPage() {
 
     {userRol === "MECANICO" && <div className="flex items-center gap-2 text-sm text-gray-700"><input id="onlyMineFin" type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /><label htmlFor="onlyMineFin">Ver sólo mis trabajos asignados</label></div>}
 
-    <section id="cuestionarios-finalizados">
+    <section id="cuestionarios-finalizados" className="scroll-mt-28">
       <h2 className="text-2xl font-semibold mb-4">Cuestionarios Cliente ({cqFiltrados.length})</h2>
       <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchCq} onChange={e => setSearchCq(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300" />
       {cqFiltrados.length === 0 ? <p className="text-gray-600">No hay cuestionarios finalizados en este periodo.</p> : cqFiltrados.map(c => renderItem(c, "cliente"))}
     </section>
 
-    <section id="checklists-finalizadas">
+    <section id="checklists-finalizadas" className="scroll-mt-28">
       <h2 className="text-2xl font-semibold mb-4">Checklists ({chFiltrados.length})</h2>
       <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchCh} onChange={e => setSearchCh(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300" />
       {chFiltrados.length === 0 ? <p className="text-gray-600">No hay checklists finalizadas en este periodo.</p> : chFiltrados.map(c => renderItem(c, "checklist"))}
     </section>
 
-    <section id="recambios-finalizados">
+    <section id="recambios-finalizados" className="scroll-mt-28">
       <h2 className="text-2xl font-semibold mb-4">Recambios ({rFiltrados.length})</h2>
       <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchR} onChange={e => setSearchR(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300" />
       {rFiltrados.length === 0 ? <p className="text-gray-600">No hay recambios finalizados en este periodo.</p> : rFiltrados.map(c => renderItem(c, "recambios"))}
