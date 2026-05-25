@@ -3,19 +3,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  deleteDoc,
-  doc
-} from "firebase/firestore";
-
+import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { deleteChatTrabajo } from "../../lib/chatCleanup";
 import { subscribeUserProfile } from "../../lib/userProfile";
 
 const CONFIRM_KEY = "CALENDABORRAR";
+const pad = (n) => String(n).padStart(2, "0");
+const mesActual = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+};
+const toDate = (v) => v?.toDate?.() ? v.toDate() : v ? new Date(v) : null;
+const fechaTexto = (v) => {
+  const d = toDate(v);
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("es-ES") : "Sin fecha";
+};
+const fechaFiltro = (item) => toDate(item.fechaFinalizado || item.finalizadoEn || item.actualizadoEn || item.creadoEn || item.createdAt);
+const enMes = (item, mes) => {
+  if (!mes) return true;
+  const d = fechaFiltro(item);
+  if (!d || Number.isNaN(d.getTime())) return false;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}` === mes;
+};
 
 export default function TrabajosFinalizadosPage() {
   const router = useRouter();
@@ -23,55 +32,31 @@ export default function TrabajosFinalizadosPage() {
   const [cuestionarios, setCuestionarios] = useState([]);
   const [checklists, setChecklists] = useState([]);
   const [recambios, setRecambios] = useState([]);
-
   const [searchCq, setSearchCq] = useState("");
   const [searchCh, setSearchCh] = useState("");
   const [searchR, setSearchR] = useState("");
-
+  const [mes, setMes] = useState(mesActual());
   const [userRol, setUserRol] = useState("ADMIN");
   const [onlyMine, setOnlyMine] = useState(true);
-
-  // ✅ Evita que el rol pise el checkbox tras que el usuario haga click
   const didInitOnlyMine = useRef(false);
 
   const matchTrabajo = (item, term) => {
     const t = (term || "").toLowerCase();
-    return (
-      (item?.datos?.matricula || "").toLowerCase().includes(t) ||
-      (item?.datos?.numeroOR || "").toLowerCase().includes(t) ||
-      (item?.datos?.nombreCliente || "").toLowerCase().includes(t)
-    );
+    return (item?.datos?.matricula || "").toLowerCase().includes(t) || (item?.datos?.numeroOR || "").toLowerCase().includes(t) || (item?.datos?.nombreCliente || "").toLowerCase().includes(t);
   };
-
-  const trabajoLabel = (item) =>
-    `${item?.datos?.matricula || ""} — ${item?.datos?.numeroOR || ""} — ${
-      item?.datos?.nombreCliente || ""
-    }`;
+  const trabajoLabel = (item) => `${item?.datos?.matricula || ""} — ${item?.datos?.numeroOR || ""} — ${item?.datos?.nombreCliente || ""}`;
 
   useEffect(() => {
-    if (!auth.currentUser) {
-      router.replace("/login");
-      return;
-    }
+    if (!auth.currentUser) { router.replace("/login"); return; }
     const u = auth.currentUser;
     const unsub = subscribeUserProfile(u.uid, (p) => {
       const rol = (p?.rol || "ADMIN").toUpperCase();
       setUserRol(rol);
-
-      // Si NO es mecánico, siempre se desactiva (no tiene sentido el filtro)
-      if (rol !== "MECANICO") {
-        didInitOnlyMine.current = true;
-        setOnlyMine(false);
-        return;
-      }
-
-      // Si es mecánico, sólo poner el valor por defecto 1 vez
-      if (!didInitOnlyMine.current) {
-        didInitOnlyMine.current = true;
-        setOnlyMine(true);
-      }
+      if (rol !== "MECANICO") { didInitOnlyMine.current = true; setOnlyMine(false); return; }
+      if (!didInitOnlyMine.current) { didInitOnlyMine.current = true; setOnlyMine(true); }
     });
     (async () => {
+      setLoading(true);
       const [cqSnap, chSnap, rSnap] = await Promise.all([
         getDocs(query(collection(db, "cuestionarios_cliente"), where("estadoPresupuesto", "==", "FINALIZADO"))),
         getDocs(query(collection(db, "checklists"), where("estadoPresupuesto", "==", "FINALIZADO"))),
@@ -79,8 +64,7 @@ export default function TrabajosFinalizadosPage() {
       ]);
       const cq = cqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const ch = chSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const r  = rSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
+      const r = rSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       if (userRol === "MECANICO" && onlyMine) {
         const allowed = new Set(cq.filter(x => x.asignadoMecanicoUid === u.uid).map(x => x.id));
         setCuestionarios(cq.filter(x => allowed.has(x.id)));
@@ -98,164 +82,63 @@ export default function TrabajosFinalizadosPage() {
 
   const confirmAndDeleteAll = async (itemId) => {
     const clave = prompt("Introduce la clave de confirmación para borrar:");
-    if (clave !== CONFIRM_KEY) {
-      alert("Clave incorrecta. Operación cancelada.");
-      return;
-    }
-
-    // Borrar chat asociado (si existe)
+    if (clave !== CONFIRM_KEY) return alert("Clave incorrecta. Operación cancelada.");
     await deleteChatTrabajo(db, itemId);
-    if (confirm("¿Deseas borrar el cuestionario cliente asociado?")) {
-      await deleteDoc(doc(db, "cuestionarios_cliente", itemId));
-      setCuestionarios(prev => prev.filter(c => c.id !== itemId));
-    }
-    if (confirm("¿Deseas borrar la checklist asociada?")) {
-      await deleteDoc(doc(db, "checklists", itemId));
-      setChecklists(prev => prev.filter(c => c.id !== itemId));
-    }
-    if (confirm("¿Deseas borrar los recambios asociados?")) {
-      await deleteDoc(doc(db, "recambios", itemId));
-      setRecambios(prev => prev.filter(c => c.id !== itemId));
-    }
+    if (confirm("¿Deseas borrar el cuestionario cliente asociado?")) { await deleteDoc(doc(db, "cuestionarios_cliente", itemId)); setCuestionarios(prev => prev.filter(c => c.id !== itemId)); }
+    if (confirm("¿Deseas borrar la checklist asociada?")) { await deleteDoc(doc(db, "checklists", itemId)); setChecklists(prev => prev.filter(c => c.id !== itemId)); }
+    if (confirm("¿Deseas borrar los recambios asociados?")) { await deleteDoc(doc(db, "recambios", itemId)); setRecambios(prev => prev.filter(c => c.id !== itemId)); }
   };
+
+  const cqFiltrados = useMemo(() => cuestionarios.filter(c => enMes(c, mes) && matchTrabajo(c, searchCq)), [cuestionarios, mes, searchCq]);
+  const chFiltrados = useMemo(() => checklists.filter(c => enMes(c, mes) && matchTrabajo(c, searchCh)), [checklists, mes, searchCh]);
+  const rFiltrados = useMemo(() => recambios.filter(c => enMes(c, mes) && matchTrabajo(c, searchR)), [recambios, mes, searchR]);
 
   if (loading) return <p className="p-6 text-center">Cargando…</p>;
 
-  return (
-    <main className="max-w-4xl mx-auto p-6 space-y-8">
-      <h1 className="text-3xl font-bold">Trabajos Finalizados</h1>
-      <button
-        onClick={() => router.push("/dashboard")}
-        className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-      >
-        ← Volver al Dashboard
-      </button>
+  const renderItem = (c, tipo) => {
+    const rutaVer = tipo === "cliente" ? `/cliente-form/${encodeURIComponent(c.id)}?view=true` : tipo === "checklist" ? `/diagnostico-form/${encodeURIComponent(c.id)}/detalle` : `/recambios-form/${encodeURIComponent(c.id)}/detalle`;
+    return <div key={c.id} className="flex justify-between items-center bg-green-100 p-4 mb-2 rounded gap-3">
+      <div><p className="font-medium">{trabajoLabel(c)}</p><p className="text-xs text-gray-600">Finalizado/fecha: {fechaTexto(fechaFiltro(c))}</p></div>
+      <div className="space-x-2 whitespace-nowrap">
+        <button onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(c.id)}`)} className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700">Chat</button>
+        <button onClick={() => router.push(rutaVer)} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Ver</button>
+        <button onClick={() => confirmAndDeleteAll(c.id)} className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">Eliminar</button>
+      </div>
+    </div>;
+  };
 
-      {userRol === "MECANICO" && (
-        <div className="flex items-center gap-2 text-sm text-gray-700">
-          <input
-            id="onlyMineFin"
-            type="checkbox"
-            checked={onlyMine}
-            onChange={(e) => setOnlyMine(e.target.checked)}
-          />
-          <label htmlFor="onlyMineFin">Ver sólo mis trabajos asignados</label>
-        </div>
-      )}
+  return <main className="max-w-5xl mx-auto p-6 space-y-8">
+    <div className="flex justify-between items-center gap-3 flex-wrap">
+      <div><h1 className="text-3xl font-bold">Trabajos Finalizados</h1><p className="text-gray-600">Por defecto se muestran los trabajos del mes actual.</p></div>
+      <button onClick={() => router.push("/dashboard")} className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">← Volver al Dashboard</button>
+    </div>
 
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">Cuestionarios Cliente</h2>
-        <div className="relative mb-4">
-          <input
-            type="text"
-            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
-            value={searchCq}
-            onChange={e => setSearchCq(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300"
-          />
-        </div>
-        {cuestionarios.filter(c => matchTrabajo(c, searchCq)).length === 0 ? (
-          <p className="text-gray-600">No hay cuestionarios finalizados.</p>
-        ) : (
-          cuestionarios.filter(c => matchTrabajo(c, searchCq)).map(c => {
-            return (
-              <div key={c.id} className="flex justify-between items-center bg-green-100 p-4 mb-2 rounded">
-                <p className="font-medium">{trabajoLabel(c)}</p>
-                <div className="space-x-2">
-                  <button
-                    onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(c.id)}`)}
-                    className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
-                  >Chat</button>
-                  <button
-                    onClick={() => router.push(`/cliente-form/${encodeURIComponent(c.id)}?view=true`)}
-                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                  >Ver</button>
-                  <button
-                    onClick={() => confirmAndDeleteAll(c.id)}
-                    className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                  >Eliminar</button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </section>
+    <div className="flex flex-wrap gap-3 bg-white rounded-xl shadow p-4 items-end">
+      <button onClick={() => router.push("/diagnostico-form")} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Ir a checklist finalizadas</button>
+      <button onClick={() => router.push("/recambios-form")} className="px-4 py-2 bg-blue-800 text-white rounded hover:bg-blue-900">Ir a recambios finalizados</button>
+      <label className="ml-auto text-sm font-semibold">Filtro por mes<input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="block border rounded px-3 py-2 mt-1" /></label>
+      <button onClick={() => setMes(mesActual())} className="px-4 py-2 bg-green-600 text-white rounded">Mes actual</button>
+      <button onClick={() => setMes("")} className="px-4 py-2 bg-gray-600 text-white rounded">Ver todos</button>
+    </div>
 
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">Checklists</h2>
-        <div className="relative mb-4">
-          <input
-            type="text"
-            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
-            value={searchCh}
-            onChange={e => setSearchCh(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300"
-          />
-        </div>
-        {checklists.filter(c => matchTrabajo(c, searchCh)).length === 0 ? (
-          <p className="text-gray-600">No hay checklists finalizadas.</p>
-        ) : (
-          checklists.filter(c => matchTrabajo(c, searchCh)).map(c => {
-            return (
-              <div key={c.id} className="flex justify-between items-center bg-green-100 p-4 mb-2 rounded">
-                <p className="font-medium">{trabajoLabel(c)}</p>
-                <div className="space-x-2">
-                  <button
-                    onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(c.id)}`)}
-                    className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
-                  >Chat</button>
-                  <button
-                    onClick={() => router.push(`/diagnostico-form/${encodeURIComponent(c.id)}/detalle`)}
-                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                  >Ver</button>
-                  <button
-                    onClick={() => confirmAndDeleteAll(c.id)}
-                    className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                  >Eliminar</button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </section>
+    {userRol === "MECANICO" && <div className="flex items-center gap-2 text-sm text-gray-700"><input id="onlyMineFin" type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /><label htmlFor="onlyMineFin">Ver sólo mis trabajos asignados</label></div>}
 
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">Recambios</h2>
-        <div className="relative mb-4">
-          <input
-            type="text"
-            placeholder="🔍 Buscar matrícula, número de orden o nombre..."
-            value={searchR}
-            onChange={e => setSearchR(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300"
-          />
-        </div>
-        {recambios.filter(c => matchTrabajo(c, searchR)).length === 0 ? (
-          <p className="text-gray-600">No hay recambios finalizados.</p>
-        ) : (
-          recambios.filter(c => matchTrabajo(c, searchR)).map(c => {
-            return (
-              <div key={c.id} className="flex justify-between items-center bg-green-100 p-4 mb-2 rounded">
-                <p className="font-medium">{trabajoLabel(c)}</p>
-                <div className="space-x-2">
-                  <button
-                    onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(c.id)}`)}
-                    className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700"
-                  >Chat</button>
-                  <button
-                    onClick={() => router.push(`/recambios-form/${encodeURIComponent(c.id)}/detalle`)}
-                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                  >Ver</button>
-                  <button
-                    onClick={() => confirmAndDeleteAll(c.id)}
-                    className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                  >Eliminar</button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </section>
-    </main>
-  );
+    <section id="cuestionarios-finalizados">
+      <h2 className="text-2xl font-semibold mb-4">Cuestionarios Cliente ({cqFiltrados.length})</h2>
+      <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchCq} onChange={e => setSearchCq(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300" />
+      {cqFiltrados.length === 0 ? <p className="text-gray-600">No hay cuestionarios finalizados en este periodo.</p> : cqFiltrados.map(c => renderItem(c, "cliente"))}
+    </section>
+
+    <section id="checklists-finalizadas">
+      <h2 className="text-2xl font-semibold mb-4">Checklists ({chFiltrados.length})</h2>
+      <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchCh} onChange={e => setSearchCh(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300" />
+      {chFiltrados.length === 0 ? <p className="text-gray-600">No hay checklists finalizadas en este periodo.</p> : chFiltrados.map(c => renderItem(c, "checklist"))}
+    </section>
+
+    <section id="recambios-finalizados">
+      <h2 className="text-2xl font-semibold mb-4">Recambios ({rFiltrados.length})</h2>
+      <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchR} onChange={e => setSearchR(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-green-500 focus:outline-none focus:ring-2 focus:ring-green-300" />
+      {rFiltrados.length === 0 ? <p className="text-gray-600">No hay recambios finalizados en este periodo.</p> : rFiltrados.map(c => renderItem(c, "recambios"))}
+    </section>
+  </main>;
 }
