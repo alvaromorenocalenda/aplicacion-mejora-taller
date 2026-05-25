@@ -19,6 +19,7 @@ const fechaTexto = (v) => {
   return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("es-ES") : "Sin fecha";
 };
 const fechaFiltro = (item) => toDate(item.fechaFinalizado || item.finalizadoEn || item.actualizadoEn || item.creadoEn || item.createdAt);
+const datosObjeto = (d) => d && typeof d === "object" && !Array.isArray(d) ? d : {};
 const enMes = (item, mes) => {
   if (!mes) return true;
   const d = fechaFiltro(item);
@@ -48,9 +49,43 @@ export default function TrabajosFinalizadosPage() {
 
   const matchTrabajo = (item, term) => {
     const t = (term || "").toLowerCase();
-    return (item?.datos?.matricula || "").toLowerCase().includes(t) || (item?.datos?.numeroOR || "").toLowerCase().includes(t) || (item?.datos?.nombreCliente || "").toLowerCase().includes(t);
+    const d = datosObjeto(item?.datos);
+    return (d?.matricula || "").toLowerCase().includes(t) || (d?.numeroOR || "").toLowerCase().includes(t) || (d?.nombreCliente || d?.nombre || "").toLowerCase().includes(t);
   };
-  const trabajoLabel = (item) => `${item?.datos?.matricula || ""} — ${item?.datos?.numeroOR || ""} — ${item?.datos?.nombreCliente || ""}`;
+  const trabajoLabel = (item) => {
+    const d = datosObjeto(item?.datos);
+    return `${d?.matricula || "Sin matrícula"} — ${d?.numeroOR || "Sin OR"} — ${d?.nombreCliente || d?.nombre || "Sin cliente"}`;
+  };
+
+  function completarDatosRelacionados(cq, ch, r) {
+    const cuestionariosMap = new Map(cq.map((x) => [x.id, x]));
+    const checklistsMap = new Map(ch.map((x) => [x.id, x]));
+
+    const checklistsCompletas = ch.map((x) => {
+      const cuestionarioId = x.cuestionarioId || x.id;
+      const cuestionario = cuestionariosMap.get(cuestionarioId) || {};
+      return { ...x, cuestionarioId, datos: { ...datosObjeto(cuestionario.datos), ...datosObjeto(x.datos) } };
+    });
+
+    const recambiosCompletos = r.map((x) => {
+      const checklistId = x.checklistId || x.id;
+      const checklist = checklistsMap.get(checklistId) || {};
+      const cuestionarioId = x.cuestionarioId || checklist.cuestionarioId || checklistId || x.id;
+      const cuestionario = cuestionariosMap.get(cuestionarioId) || cuestionariosMap.get(x.id) || {};
+      return {
+        ...x,
+        checklistId,
+        cuestionarioId,
+        datos: {
+          ...datosObjeto(cuestionario.datos),
+          ...datosObjeto(checklist.datos),
+          ...datosObjeto(x.datos),
+        },
+      };
+    });
+
+    return { checklistsCompletas, recambiosCompletos };
+  }
 
   useEffect(() => {
     if (!auth.currentUser) { router.replace("/login"); return; }
@@ -71,15 +106,17 @@ export default function TrabajosFinalizadosPage() {
       const cq = cqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const ch = chSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const r = rSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const { checklistsCompletas, recambiosCompletos } = completarDatosRelacionados(cq, ch, r);
+
       if (userRol === "MECANICO" && onlyMine) {
         const allowed = new Set(cq.filter(x => x.asignadoMecanicoUid === u.uid).map(x => x.id));
         setCuestionarios(cq.filter(x => allowed.has(x.id)));
-        setChecklists(ch.filter(x => allowed.has(x.id)));
-        setRecambios(r.filter(x => allowed.has(x.id)));
+        setChecklists(checklistsCompletas.filter(x => allowed.has(x.cuestionarioId || x.id)));
+        setRecambios(recambiosCompletos.filter(x => allowed.has(x.cuestionarioId || x.id)));
       } else {
         setCuestionarios(cq);
-        setChecklists(ch);
-        setRecambios(r);
+        setChecklists(checklistsCompletas);
+        setRecambios(recambiosCompletos);
       }
       setLoading(false);
     })();
@@ -102,11 +139,12 @@ export default function TrabajosFinalizadosPage() {
   if (loading) return <p className="p-6 text-center">Cargando…</p>;
 
   const renderItem = (c, tipo) => {
+    const cuestionarioId = c.cuestionarioId || c.id;
     const rutaVer = tipo === "cliente" ? `/cliente-form/${encodeURIComponent(c.id)}?view=true` : tipo === "checklist" ? `/diagnostico-form/${encodeURIComponent(c.id)}/detalle` : `/recambios-form/${encodeURIComponent(c.id)}/detalle`;
     return <div key={c.id} className="flex justify-between items-center bg-green-100 p-4 mb-2 rounded gap-3">
       <div><p className="font-medium">{trabajoLabel(c)}</p><p className="text-xs text-gray-600">Finalizado/fecha: {fechaTexto(fechaFiltro(c))}</p></div>
       <div className="space-x-2 whitespace-nowrap">
-        <button onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(c.id)}`)} className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700">Chat</button>
+        <button onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(cuestionarioId)}`)} className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700">Chat</button>
         <button onClick={() => router.push(rutaVer)} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Ver</button>
         <button onClick={() => confirmAndDeleteAll(c.id)} className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">Eliminar</button>
       </div>
