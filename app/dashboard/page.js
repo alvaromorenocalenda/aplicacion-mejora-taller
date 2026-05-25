@@ -384,9 +384,9 @@ export default function DashboardPage() {
         {/* Acciones */}
         <div className="flex gap-4 mb-8 flex-wrap md:flex-nowrap justify-center">
           <button
-            onClick={() => router.push("/calendario-citas")}
+            onClick={() => router.push("/calendarios")}
             className="flex-1 md:flex-none bg-pink-500 text-white px-4 py-2 rounded hover:bg-pink-600">
-            Calendario de Citas
+            Calendarios
           </button>
           <button
             onClick={() => router.push("/cliente-form")}
