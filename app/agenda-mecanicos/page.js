@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { addDoc, collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc, updateDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
 
-const DEFAULT_HORARIO = { horaInicio: "08:00", horaFin: "16:00", pausaInicio: "", pausaFin: "", sabado: false, domingo: false }
+const DEFAULT_HORARIO = { horaInicio: "09:00", horaFin: "20:00", pausaInicio: "14:00", pausaFin: "16:30", sabado: false, domingo: false }
 const pad = (n) => String(n).padStart(2, "0")
 const toDate = (v) => v?.toDate?.() ? v.toDate() : v ? new Date(v) : null
 const fechaInput = (v = new Date()) => `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}T${pad(v.getHours())}:${pad(v.getMinutes())}`
@@ -48,14 +48,14 @@ function siguienteDiaLaborable(fecha, horario) {
   f.setDate(f.getDate() + 1)
   f.setHours(0, 0, 0, 0)
   for (let i = 0; i < 370; i++) {
-    if (esDiaLaborable(f, horario)) return conHora(f, minutos(horario.horaInicio) ?? 480)
+    if (esDiaLaborable(f, horario)) return conHora(f, minutos(horario.horaInicio) ?? 540)
     f.setDate(f.getDate() + 1)
   }
   return f
 }
 function segmentosDia(fecha, horario) {
-  const inicio = minutos(horario.horaInicio) ?? 480
-  const fin = minutos(horario.horaFin) ?? 960
+  const inicio = minutos(horario.horaInicio) ?? 540
+  const fin = minutos(horario.horaFin) ?? 1200
   const pIni = minutos(horario.pausaInicio)
   const pFin = minutos(horario.pausaFin)
   if (pIni !== null && pFin !== null && pIni > inicio && pFin > pIni && pFin < fin) {
@@ -76,7 +76,7 @@ function calcularFinLaboral(inicioValor, horas, horarioBase) {
     }
 
     const segmentos = segmentosDia(actual, horario)
-    const finDia = segmentos[segmentos.length - 1][1]
+    const finDia = segmentos[segments.length - 1][1]
     if (actual >= finDia) {
       actual = siguienteDiaLaborable(actual, horario)
       continue
