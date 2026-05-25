@@ -94,10 +94,10 @@ export default function CalendarioCitas() {
     <div style={{ height: "100%", padding: "1rem" }}>
       <div className="mb-4">
         <button
-          onClick={() => window.location.href = "/dashboard"}
+          onClick={() => window.location.href = "/calendarios"}
           className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
         >
-          ⬅ Volver al Dashboard
+          ⬅ Volver a Calendarios
         </button>
       </div>
 
