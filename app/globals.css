@@ -126,11 +126,13 @@ textarea {
   box-shadow: var(--app-shadow-soft) !important;
 }
 
+/* Importante: NO ocultar contenido por defecto en rounded.
+   Esto cortaba formularios largos como Diagnóstico. */
 .rounded,
 .rounded-lg,
 .rounded-xl,
 .rounded-2xl {
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Botones con estilo más profesional */
@@ -205,6 +207,13 @@ article.bg-white {
 .bg-red-50,
 .bg-yellow-50 {
   border: 1px solid rgba(15, 23, 42, 0.07);
+}
+
+/* Evita que el formulario de diagnóstico quede cortado dentro de un scroll interno */
+.max-h-\[375vh\] {
+  max-height: none !important;
+  height: auto !important;
+  overflow: visible !important;
 }
 
 /* Tablas */
