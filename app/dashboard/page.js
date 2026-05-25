@@ -33,6 +33,18 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({ pendientes: 0, finalizados: 0, denegados: 0, agendaHoy: 0, avisos: 0, chatsNuevos: 0, agendaPendiente: 0, agendaProceso: 0 });
   const esAsesor = userRol !== "MECANICO";
 
+  const menuPrincipal = [
+    { label: "Calendarios", color: "bg-pink-500 hover:bg-pink-600", url: "/calendarios" },
+    { label: "Nuevo cuestionario", color: "bg-blue-600 hover:bg-blue-700", url: "/cliente-form" },
+    { label: "Diagnósticos", color: "bg-yellow-500 hover:bg-yellow-600", url: "/diagnostico-form" },
+    { label: "Recambios", color: "bg-blue-800 hover:bg-blue-900", url: "/recambios-form" },
+    { label: "Chats", color: "bg-fuchsia-600 hover:bg-fuchsia-700", url: "/chats" },
+    { label: "Imágenes", color: "bg-purple-500 hover:bg-purple-600", url: "/imagenes" },
+    { label: "Documentos", color: "bg-orange-500 hover:bg-orange-600", url: "/documentos" },
+    { label: "Presupuestos denegados", color: "bg-red-600 hover:bg-red-700", url: "/presupuestos-denegados" },
+    { label: "Trabajos finalizados", color: "bg-green-500 hover:bg-green-600", url: "/trabajos-finalizados" },
+  ];
+
   const handleEnableNotifications = async () => {
     try {
       if (!auth.currentUser) return alert("No hay usuario logueado.");
@@ -186,53 +198,49 @@ export default function DashboardPage() {
   const filteredItems = items.filter(({ datos }) => [datos?.matricula, datos?.numeroOR, datos?.nombreCliente, datos?.marcaModelo].filter(Boolean).join(" ").toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <main className="p-6 space-y-6">
+    <main className="p-3 sm:p-6 space-y-6 overflow-x-hidden">
       <div className="max-w-7xl mx-auto">
-        <header className="flex justify-between items-center mb-6">
-          <div><h1 className="text-3xl font-bold">Dashboard</h1><p className="mt-1 text-gray-600">Bienvenido, {user?.email}</p></div>
-          <div className="ml-auto flex items-center gap-3">
-            <button onClick={handleEnableNotifications} disabled={pushStatus === "working"} className={`px-4 py-2 rounded-lg border-2 border-black shadow-lg transition ${pushStatus === "enabled" ? "bg-green-500 text-black hover:bg-green-600" : "bg-yellow-400 text-black hover:bg-yellow-500"}`} title="Activa notificaciones push para avisos de chat">{pushStatus === "working" ? "🔔 Activando..." : pushStatus === "enabled" ? "🔔 Notificaciones ON" : "🔔 Activar notificaciones"}</button>
-            <button onClick={handleSignOut} className="px-4 py-2 bg-red-500 text-black border-2 border-black rounded-lg shadow-lg hover:bg-red-600 transition flex items-center gap-2"><span className="text-black text-lg leading-none">✖︎</span> Salir</button>
+        <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+          <div className="min-w-0"><h1 className="text-3xl font-bold">Dashboard</h1><p className="mt-1 text-gray-600 break-words">Bienvenido, {user?.email}</p></div>
+          <div className="w-full sm:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+            <button onClick={handleEnableNotifications} disabled={pushStatus === "working"} className={`w-full sm:w-auto px-4 py-3 rounded-lg border-2 border-black shadow-lg transition font-semibold ${pushStatus === "enabled" ? "bg-green-500 text-black hover:bg-green-600" : "bg-yellow-400 text-black hover:bg-yellow-500"}`} title="Activa notificaciones push para avisos de chat">{pushStatus === "working" ? "🔔 Activando..." : pushStatus === "enabled" ? "🔔 Notificaciones ON" : "🔔 Activar notificaciones"}</button>
+            <button onClick={handleSignOut} className="w-full sm:w-auto px-4 py-3 bg-red-500 text-black border-2 border-black rounded-lg shadow-lg hover:bg-red-600 transition font-semibold">✖︎ Salir</button>
           </div>
         </header>
 
         {esAsesor && (
-          <section className="mb-8 bg-white rounded-xl shadow p-5 border border-blue-100">
-            <div className="flex justify-between items-center gap-3 flex-wrap mb-4">
+          <section className="mb-6 sm:mb-8 bg-white rounded-xl shadow p-4 sm:p-5 border border-blue-100">
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 mb-4">
               <div><h2 className="text-2xl font-bold">Panel Estadísticas</h2><p className="text-gray-600 text-sm">Resumen rápido solo para asesores y administradores.</p></div>
-              <div className="flex gap-2 flex-wrap"><button onClick={() => router.push("/notificaciones")} className="bg-amber-600 text-white px-4 py-2 rounded">Notificaciones</button><button onClick={() => router.push("/agenda-mecanicos")} className="bg-purple-600 text-white px-4 py-2 rounded">Agenda Mecánicos</button></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full lg:w-auto"><button onClick={() => router.push("/notificaciones")} className="bg-amber-600 text-white px-4 py-3 rounded font-semibold">Notificaciones</button><button onClick={() => router.push("/agenda-mecanicos")} className="bg-purple-600 text-white px-4 py-3 rounded font-semibold">Agenda Mecánicos</button></div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="bg-yellow-50 border rounded p-3"><p className="text-xs text-gray-500">Pendientes</p><b className="text-2xl">{stats.pendientes}</b></div>
               <div className="bg-blue-50 border rounded p-3"><p className="text-xs text-gray-500">Agenda hoy</p><b className="text-2xl">{stats.agendaHoy}</b><p className="text-xs text-gray-500">{stats.agendaPendiente} pendientes · {stats.agendaProceso} en proceso</p></div>
               <div className="bg-amber-50 border rounded p-3"><p className="text-xs text-gray-500">Avisos internos</p><b className="text-2xl">{stats.avisos}</b></div>
               <div className="bg-green-50 border rounded p-3"><p className="text-xs text-gray-500">Finalizados</p><b className="text-2xl">{stats.finalizados}</b></div>
               <div className="bg-red-50 border rounded p-3"><p className="text-xs text-gray-500">Denegados</p><b className="text-2xl">{stats.denegados}</b></div>
               <div className="bg-fuchsia-50 border rounded p-3"><p className="text-xs text-gray-500">Chats con actividad</p><b className="text-2xl">{stats.chatsNuevos}</b></div>
-              <button onClick={() => router.push("/trabajos-finalizados")} className="bg-green-600 text-white rounded p-3 text-left"><p className="text-xs opacity-90">Ir a</p><b>Trabajos finalizados</b></button>
-              <button onClick={() => router.push("/chats/informes")} className="bg-fuchsia-600 text-white rounded p-3 text-left"><p className="text-xs opacity-90">Ir a</p><b>Informes chats</b></button>
+              <button onClick={() => router.push("/trabajos-finalizados")} className="bg-green-600 text-white rounded p-3 text-left min-h-[74px]"><p className="text-xs opacity-90">Ir a</p><b>Trabajos finalizados</b></button>
+              <button onClick={() => router.push("/chats/informes")} className="bg-fuchsia-600 text-white rounded p-3 text-left min-h-[74px]"><p className="text-xs opacity-90">Ir a</p><b>Informes chats</b></button>
             </div>
           </section>
         )}
 
-        <div className="flex gap-4 mb-8 flex-wrap md:flex-nowrap justify-center">
-          <button onClick={() => router.push("/calendarios")} className="flex-1 md:flex-none bg-pink-500 text-white px-4 py-2 rounded hover:bg-pink-600">Calendarios</button>
-          <button onClick={() => router.push("/cliente-form")} className="flex-1 md:flex-none bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Nuevo Cuestionario</button>
-          <button onClick={() => router.push("/diagnostico-form")} className="flex-1 md:flex-none bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Diagnósticos</button>
-          <button onClick={() => router.push("/recambios-form")} className="flex-1 md:flex-none bg-blue-800 text-white px-4 py-2 rounded hover:bg-blue-900">Recambios</button>
-          <button onClick={() => router.push("/chats")} className="flex-1 md:flex-none bg-fuchsia-600 text-white px-4 py-2 rounded hover:bg-fuchsia-700">Chats</button>
-          <button onClick={() => router.push("/imagenes")} className="flex-1 md:flex-none bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">Imágenes</button>
-          <button onClick={() => router.push("/documentos")} className="flex-1 md:flex-none bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600">Documentos</button>
-          <button onClick={() => router.push("/presupuestos-denegados")} className="flex-1 md:flex-none bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Presupuestos Denegados</button>
-          <button onClick={() => router.push("/trabajos-finalizados")} className="flex-1 md:flex-none bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Trabajos Finalizados</button>
-        </div>
+        <nav className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6 sm:mb-8">
+          {menuPrincipal.map((item) => (
+            <button key={item.url} onClick={() => router.push(item.url)} className={`${item.color} text-white px-3 py-3 rounded-lg font-semibold text-sm sm:text-base min-h-[56px] shadow flex items-center justify-center text-center leading-tight break-words`}>
+              {item.label}
+            </button>
+          ))}
+        </nav>
       </div>
 
-      <section className="mt-8 space-y-4 max-w-7xl mx-auto">
+      <section className="mt-6 sm:mt-8 space-y-4 max-w-7xl mx-auto">
         <h2 className="text-2xl font-semibold">Cuestionarios guardados</h2>
-        <div className="relative mb-4"><input type="text" placeholder="🔍 Buscar matrícula, nº OR o nombre..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" /></div>
+        <div className="relative mb-4"><input type="text" placeholder="🔍 Buscar matrícula, nº OR o nombre..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-4 sm:pl-10 pr-4 py-3 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" /></div>
         {userRol === "MECANICO" && <div className="mb-4 flex items-center gap-2 text-sm text-gray-700"><input id="onlyMine" type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /><label htmlFor="onlyMine">Ver sólo mis trabajos asignados</label></div>}
-        {filteredItems.length === 0 ? <p className="text-gray-600">No hay cuestionarios que coincidan.</p> : filteredItems.map(({ id, datos, creadoEn }) => <div key={id} className="flex justify-between items-center bg-white p-4 rounded shadow"><div><p className="font-medium flex items-center flex-wrap gap-2"><span>{datos.matricula} — {datos.numeroOR} — {datos.nombreCliente || ""}</span>{unreadMap?.[id] ? <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">● NUEVO MENSAJE</span> : null}</p><p className="text-sm text-gray-500">Creado: {fechaTexto(creadoEn)}</p></div><div className="space-x-5"><button onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(id)}`)} className="text-fuchsia-700 hover:underline">Chat</button><button onClick={() => router.push(`/cliente-form/${encodeURIComponent(id)}?view=true`)} className="text-indigo-600 hover:underline">Ver</button><button onClick={() => router.push(`/cliente-form/${encodeURIComponent(id)}?edit=true`)} className="text-pink-500 hover:underline">Editar</button><button onClick={() => handleRejectPresupuesto(id)} className="text-yellow-600 hover:underline">Rechazar presupuesto</button><button onClick={() => handleFinalizar(id)} className="text-green-600 hover:underline">Finalizar</button><button onClick={() => handleDelete(id)} className="text-red-600 hover:underline">Eliminar</button></div></div>)}
+        {filteredItems.length === 0 ? <p className="text-gray-600">No hay cuestionarios que coincidan.</p> : filteredItems.map(({ id, datos, creadoEn }) => <div key={id} className="bg-white p-4 rounded-xl shadow border border-gray-100 flex flex-col md:flex-row md:justify-between md:items-center gap-4"><div className="min-w-0"><p className="font-medium flex items-center flex-wrap gap-2 text-lg md:text-base"><span className="break-words">{datos.matricula} — {datos.numeroOR} — {datos.nombreCliente || ""}</span>{unreadMap?.[id] ? <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-bold rounded-full bg-red-600 text-white">● NUEVO MENSAJE</span> : null}</p><p className="text-sm text-gray-500">Creado: {fechaTexto(creadoEn)}</p></div><div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full md:w-auto md:min-w-[420px]"><button onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(id)}`)} className="px-3 py-2 rounded bg-fuchsia-600 text-white font-semibold">Chat</button><button onClick={() => router.push(`/cliente-form/${encodeURIComponent(id)}?view=true`)} className="px-3 py-2 rounded bg-indigo-600 text-white font-semibold">Ver</button><button onClick={() => router.push(`/cliente-form/${encodeURIComponent(id)}?edit=true`)} className="px-3 py-2 rounded bg-pink-500 text-white font-semibold">Editar</button><button onClick={() => handleRejectPresupuesto(id)} className="px-3 py-2 rounded bg-yellow-500 text-white font-semibold col-span-2 sm:col-span-1">Rechazar</button><button onClick={() => handleFinalizar(id)} className="px-3 py-2 rounded bg-green-600 text-white font-semibold">Finalizar</button><button onClick={() => handleDelete(id)} className="px-3 py-2 rounded bg-red-600 text-white font-semibold">Eliminar</button></div></div>)}
       </section>
     </main>
   );
