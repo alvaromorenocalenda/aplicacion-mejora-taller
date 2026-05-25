@@ -37,15 +37,28 @@ export default function ChatTrabajoPage() {
   const [replyTo, setReplyTo] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [chatInfo, setChatInfo] = useState({});
+  const [mostrarOpcionesImagen, setMostrarOpcionesImagen] = useState(false);
 
   const bottomRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const lastMarkReadRef = useRef(0);
 
   const chatDocRef = useMemo(() => doc(db, "chats_trabajos", String(cuestionarioId)), [cuestionarioId]);
   const mensajesColRef = useMemo(() => collection(db, "chats_trabajos", String(cuestionarioId), "messages"), [cuestionarioId]);
+
+  function seleccionarImagen(file) {
+    setImagen(file || null);
+    setMostrarOpcionesImagen(false);
+  }
+
+  function limpiarImagen() {
+    setImagen(null);
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+  }
 
   async function crearNotificacion(titulo, mensaje, tipo = "chat") {
     try {
@@ -157,8 +170,8 @@ export default function ChatTrabajoPage() {
       const lastMessage = audioUrl ? (t ? `🎙️ Audio: ${t}` : "🎙️ Audio") : imageUrl ? (t ? `📷 Imagen: ${t}` : "📷 Imagen") : t;
       await setDoc(chatDocRef, { lastMessage: lastMessage.slice(0, 180), updatedAt: serverTimestamp(), lastSenderUid: user.uid }, { merge: true });
       await crearNotificacion("Nuevo mensaje en chat", `${user.displayName || user.email || "Usuario"}: ${lastMessage.slice(0, 120)}`);
-      setImagen(null); setAudioBlob(null); setReplyTo(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      limpiarImagen();
+      setAudioBlob(null); setReplyTo(null);
       markAsRead();
     } catch (err) {
       console.error("Error enviando mensaje:", err);
@@ -194,12 +207,20 @@ export default function ChatTrabajoPage() {
       </div>
       <form onSubmit={enviar} className="mt-4 space-y-2">
         {replyTo ? <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2 flex justify-between items-center gap-3"><span className="text-sm text-yellow-900 truncate">Respondiendo a {replyTo.displayName || "Usuario"}: {resumenMensaje(replyTo)}</span><button type="button" onClick={() => setReplyTo(null)} className="text-red-600 font-semibold text-sm">Quitar</button></div> : null}
-        {imagen ? <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex justify-between items-center gap-3"><span className="text-sm text-blue-900 truncate">📷 {imagen.name}</span><button type="button" onClick={() => { setImagen(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="text-red-600 font-semibold text-sm">Quitar</button></div> : null}
-        {audioBlob ? <div className="bg-purple-50 border border-purple-200 rounded-xl px-3 py-2 flex justify-between items-center gap-3"><span className="text-sm text-purple-900">🎙️ Audio preparado</span><button type="button" onClick={() => setAudioBlob(null)} className="text-red-600 font-semibold text-sm">Quitar</button></div> : null}
-        <div className="flex gap-2">
-          <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Escribe un mensaje…" className="flex-1 border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400" />
-          <label className="px-4 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 cursor-pointer">📷<input ref={fileInputRef} type="file" accept="image/*" onChange={(e) => setImagen(e.target.files?.[0] || null)} className="hidden" /></label>
-          <button type="button" onClick={recording ? pararGrabacion : iniciarGrabacion} className={`px-4 py-3 text-white rounded-xl font-semibold ${recording ? "bg-red-600" : "bg-purple-600"}`}>{recording ? "⏹" : "🎙️"}</button>
+        {imagen ? <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex justify-between items-center gap-3"><span className="text-sm text-blue-900 truncate">📷 Imagen preparada: {imagen.name}</span><button type="button" onClick={limpiarImagen} className="text-red-600 font-semibold text-sm">Quitar</button></div> : null}
+        {audioBlob ? <div className="bg-purple-50 border border-purple-200 rounded-xl px-3 py-2 flex justify-between items-center gap-3"><span className="text-sm text-purple-900">🎙️ Audio preparado para enviar</span><button type="button" onClick={() => setAudioBlob(null)} className="text-red-600 font-semibold text-sm">Quitar</button></div> : null}
+        {recording ? <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm font-semibold text-red-700 animate-pulse">🔴 Grabando audio... pulsa “Detener grabación” cuando termines.</div> : null}
+        {mostrarOpcionesImagen ? <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => cameraInputRef.current?.click()} className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700">📸 Abrir cámara</button>
+          <button type="button" onClick={() => galleryInputRef.current?.click()} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">🖼️ Elegir de galería</button>
+          <button type="button" onClick={() => setMostrarOpcionesImagen(false)} className="px-4 py-2 bg-gray-500 text-white rounded-lg font-semibold hover:bg-gray-600">Cancelar</button>
+        </div> : null}
+        <div className="flex flex-wrap gap-2">
+          <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Escribe un mensaje…" className="flex-1 min-w-[220px] border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <button type="button" onClick={() => setMostrarOpcionesImagen((v) => !v)} className="px-4 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700">📷 Imagen</button>
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(e) => seleccionarImagen(e.target.files?.[0])} className="hidden" />
+          <input ref={galleryInputRef} type="file" accept="image/*" onChange={(e) => seleccionarImagen(e.target.files?.[0])} className="hidden" />
+          <button type="button" onClick={recording ? pararGrabacion : iniciarGrabacion} className={`px-4 py-3 text-white rounded-xl font-semibold ${recording ? "bg-red-600 hover:bg-red-700" : "bg-purple-600 hover:bg-purple-700"}`}>{recording ? "Detener grabación" : "🎙️ Grabar audio"}</button>
           <button type="submit" disabled={enviando} className="px-5 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-60">{enviando ? "Enviando…" : "Enviar"}</button>
         </div>
       </form>
