@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { addDoc, collection, deleteDoc, doc, getDocs, serverTimestamp, updateDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase"
+import { addDoc, collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc, updateDoc } from "firebase/firestore"
+import { auth, db } from "@/lib/firebase"
 
 const pad = (n) => String(n).padStart(2, "0")
 const toDate = (v) => v?.toDate?.() ? v.toDate() : v ? new Date(v) : null
@@ -16,6 +16,14 @@ const estadoTxt = (e) => e === "terminado" ? "Terminado" : e === "en_proceso" ? 
 const duracionTxt = (h) => { const n = Number(h || 0); if (!n) return "Sin estimar"; const hh = Math.floor(n); const mm = Math.round((n - hh) * 60); if (hh && mm) return `${hh} h ${mm} min`; if (hh) return `${hh} h`; return `${mm} min` }
 const retrasado = (t) => t.estado !== "terminado" && fechaFin(t.fechaInicio, t.duracionHoras) && fechaFin(t.fechaInicio, t.duracionHoras) < new Date()
 const badge = (e) => e === "terminado" ? "bg-green-100 text-green-800 border-green-200" : e === "en_proceso" ? "bg-blue-100 text-blue-800 border-blue-200" : "bg-yellow-100 text-yellow-800 border-yellow-200"
+const claveVehiculo = (v) => normalizar(`${v?.matricula || ""}${v?.numeroOR || ""}`) || normalizar(v?.vehiculoId || v?.id || "")
+const esMismoVehiculo = (t, v) => {
+  if (!t || !v) return false
+  if (t.vehiculoId && v.id && String(t.vehiculoId) === String(v.id)) return true
+  const a = claveVehiculo(t)
+  const b = claveVehiculo(v)
+  return !!a && !!b && a === b
+}
 
 export default function AgendaMecanicosPage() {
   const router = useRouter()
@@ -69,7 +77,36 @@ export default function AgendaMecanicosPage() {
 
   async function agregarMecanico(e) { e.preventDefault(); const nombre = nombreMecanico.trim(); if (!nombre) return; setGuardando(true); try { await addDoc(collection(db, "mecanicos"), { nombre, activo:true, creadoEn:serverTimestamp() }); setNombreMecanico(""); await cargarDatos(); setMensaje("Mecanico añadido correctamente.") } catch (e) { console.error(e); setMensaje("No se ha podido añadir el mecanico.") } finally { setGuardando(false) } }
   async function quitarMecanico(m) { if (!confirm("Quieres quitar este mecanico de la agenda?")) return; if (m.origen === "manual") await updateDoc(doc(db, "mecanicos", m.id), { activo:false, actualizadoEn:serverTimestamp() }); else await addDoc(collection(db, "mecanicos"), { nombre:m.nombre, activo:false, origenOculto:m.origen || "usuario", uid:m.uid || m.id, creadoEn:serverTimestamp() }); await cargarDatos() }
-  async function asignarTrabajo(e) { e.preventDefault(); const mecanico = mecanicosActivos.find(m => m.id === form.mecanicoId); const vehiculo = form.tipoVehiculo === "manual" ? { id:`manual-${Date.now()}`, matricula:form.manualMatricula.trim(), numeroOR:form.manualNumeroOR.trim(), cliente:form.manualCliente.trim(), marcaModelo:form.manualMarcaModelo.trim(), manual:true } : vehiculos.find(v => v.id === form.vehiculoId); if (!mecanico) return setMensaje("Selecciona mecanico."); if (!vehiculo || (!vehiculo.matricula && !vehiculo.numeroOR && !vehiculo.cliente)) return setMensaje("Selecciona un vehiculo o escribe uno manualmente."); setGuardando(true); try { await addDoc(collection(db, "agenda_mecanicos"), { mecanicoId:mecanico.id, mecanicoNombre:mecanico.nombre, vehiculoId:vehiculo.id, vehiculoManual:!!vehiculo.manual, matricula:vehiculo.matricula, numeroOR:vehiculo.numeroOR, cliente:vehiculo.cliente, marcaModelo:vehiculo.marcaModelo, fechaInicio:form.fechaInicio ? new Date(form.fechaInicio) : new Date(), duracionHoras:Number(form.duracionHoras || 0), estado:form.estado, notas:form.notas.trim(), creadoEn:serverTimestamp() }); setForm(f => ({ ...f, duracionHoras:"1", notas:"", manualMatricula:"", manualNumeroOR:"", manualCliente:"", manualMarcaModelo:"" })); await cargarDatos(); setMensaje("Vehiculo asignado correctamente.") } catch (e) { console.error(e); setMensaje("No se ha podido asignar el vehiculo.") } finally { setGuardando(false) } }
+
+  async function enviarReporteChat(vehiculo, mecanico, inicio, duracionHoras) {
+    if (vehiculo.manual || !vehiculo.id) return
+    const trabajoId = String(vehiculo.id)
+    const texto = `Agenda mecanicos: se ha asignado el vehiculo ${vehiculo.matricula || "Sin matricula"} - OR ${vehiculo.numeroOR || "Sin OR"} al mecanico ${mecanico.nombre}. Inicio: ${fechaTexto(inicio)}. Tiempo estimado: ${duracionTxt(duracionHoras)}. Finalizacion estimada: ${fechaFinTexto(inicio, duracionHoras)}.`
+    const user = auth.currentUser
+    await addDoc(collection(db, "chats_trabajos", trabajoId, "messages"), { text:texto, createdAt:serverTimestamp(), uid:user?.uid || "agenda-mecanicos", displayName:"Agenda mecanicos" })
+    await setDoc(doc(db, "chats_trabajos", trabajoId), { cuestionarioId:trabajoId, matricula:vehiculo.matricula || "", numeroOR:vehiculo.numeroOR || "", nombreCliente:vehiculo.cliente || "", lastMessage:texto.slice(0, 180), updatedAt:serverTimestamp(), lastSenderUid:user?.uid || "agenda-mecanicos" }, { merge:true })
+  }
+
+  async function asignarTrabajo(e) {
+    e.preventDefault()
+    const mecanico = mecanicosActivos.find(m => m.id === form.mecanicoId)
+    const vehiculo = form.tipoVehiculo === "manual" ? { id:`manual-${Date.now()}`, matricula:form.manualMatricula.trim(), numeroOR:form.manualNumeroOR.trim(), cliente:form.manualCliente.trim(), marcaModelo:form.manualMarcaModelo.trim(), manual:true } : vehiculos.find(v => v.id === form.vehiculoId)
+    if (!mecanico) return setMensaje("Selecciona mecanico.")
+    if (!vehiculo || (!vehiculo.matricula && !vehiculo.numeroOR && !vehiculo.cliente)) return setMensaje("Selecciona un vehiculo o escribe uno manualmente.")
+    const duplicado = trabajos.find(t => t.estado !== "terminado" && esMismoVehiculo(t, vehiculo))
+    if (duplicado) { setMensaje(`Ese vehiculo ya esta asignado a ${duplicado.mecanicoNombre || "un mecanico"}. No se ha duplicado.`); return }
+    setGuardando(true)
+    try {
+      const inicio = form.fechaInicio ? new Date(form.fechaInicio) : new Date()
+      const duracionHoras = Number(form.duracionHoras || 0)
+      await addDoc(collection(db, "agenda_mecanicos"), { mecanicoId:mecanico.id, mecanicoNombre:mecanico.nombre, vehiculoId:vehiculo.id, vehiculoManual:!!vehiculo.manual, matricula:vehiculo.matricula, numeroOR:vehiculo.numeroOR, cliente:vehiculo.cliente, marcaModelo:vehiculo.marcaModelo, fechaInicio:inicio, duracionHoras, estado:form.estado, notas:form.notas.trim(), creadoEn:serverTimestamp() })
+      try { await enviarReporteChat(vehiculo, mecanico, inicio, duracionHoras) } catch (chatError) { console.error("No se pudo enviar reporte al chat:", chatError) }
+      setForm(f => ({ ...f, duracionHoras:"1", notas:"", manualMatricula:"", manualNumeroOR:"", manualCliente:"", manualMarcaModelo:"" }))
+      await cargarDatos()
+      setMensaje("Vehiculo asignado correctamente y reportado en el chat del trabajo.")
+    } catch (e) { console.error(e); setMensaje("No se ha podido asignar el vehiculo.") } finally { setGuardando(false) }
+  }
+
   async function cambiarEstado(id, estado) { if (estado === "terminado") alert("Recordatorio: avisa al asesor por chat o presencialmente."); await updateDoc(doc(db, "agenda_mecanicos", id), { estado, actualizadoEn:serverTimestamp() }); await cargarDatos() }
   async function borrarTrabajo(id) { if (!confirm("Quieres eliminar esta asignacion?")) return; await deleteDoc(doc(db, "agenda_mecanicos", id)); await cargarDatos() }
   const imprimirPlanificacion = () => setTimeout(() => window.print(), 100)
