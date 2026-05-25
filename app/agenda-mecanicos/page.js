@@ -7,13 +7,12 @@ import { auth, db } from "@/lib/firebase"
 
 const DEFAULT_HORARIO = { horaInicio: "09:00", horaFin: "20:00", pausas: [{ inicio: "14:00", fin: "16:30" }], sabado: false, domingo: false }
 const MECANICOS_BASE = ["CHAPA", "David", "Mark", "Moisés", "Rafa", "Titi"]
-
 const pad = (n) => String(n).padStart(2, "0")
 const toDate = (v) => v?.toDate?.() ? v.toDate() : v ? new Date(v) : null
 const fechaInput = (v = new Date()) => `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}T${pad(v.getHours())}:${pad(v.getMinutes())}`
 const fechaDiaInput = (v = new Date()) => `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`
 const fechaTexto = (v) => { const f = toDate(v); return f && !isNaN(f) ? f.toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Sin fecha" }
-const fechaDiaTexto = (dia) => { const f = new Date(`${dia}T12:00:00`); return f.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }) }
+const fechaDiaTexto = (dia) => new Date(`${dia}T12:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })
 const normalizar = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "")
 const nHora = (h) => { const [a, b] = String(h || "").split(":").map(Number); return Number.isNaN(a) || Number.isNaN(b) ? null : a * 60 + b }
 const conHora = (base, min) => { const f = new Date(base); f.setHours(Math.floor(min / 60), min % 60, 0, 0); return f }
@@ -30,53 +29,39 @@ function horarioOk(h) {
 const horarioTxt = (h) => { const x = horarioOk(h); const p = x.pausas?.length ? ` · Pausas ${x.pausas.map((pa) => `${pa.inicio}-${pa.fin}`).join(", ")}` : " · Sin pausas"; return `${x.horaInicio}-${x.horaFin}${p}${x.sabado ? " · Sab" : ""}${x.domingo ? " · Dom" : ""}` }
 const mismoVehiculo = (t, v) => {
   if (t?.vehiculoId && v?.id && String(t.vehiculoId) === String(v.id)) return true
-  const a = normalizar(`${t?.matricula || ""}${t?.numeroOR || ""}`)
-  const b = normalizar(`${v?.matricula || ""}${v?.numeroOR || ""}`)
-  return !!a && !!b && a === b
+  return normalizar(`${t?.matricula || ""}${t?.numeroOR || ""}`) === normalizar(`${v?.matricula || ""}${v?.numeroOR || ""}`)
 }
+const mismoMecanico = (t, m) => String(t?.mecanicoId || "") === String(m?.id || "") || normalizar(t?.mecanicoNombre) === normalizar(m?.nombre)
 
 function esLaborable(f, h) {
   const d = f.getDay()
   return (d >= 1 && d <= 5) || (d === 6 && h.sabado) || (d === 0 && h.domingo)
 }
 function siguienteDia(f, h) {
-  const x = new Date(f)
-  x.setDate(x.getDate() + 1)
-  x.setHours(0, 0, 0, 0)
-  for (let i = 0; i < 370; i++) {
-    if (esLaborable(x, h)) return conHora(x, nHora(h.horaInicio) ?? 540)
-    x.setDate(x.getDate() + 1)
-  }
+  const x = new Date(f); x.setDate(x.getDate() + 1); x.setHours(0, 0, 0, 0)
+  for (let i = 0; i < 370; i++) { if (esLaborable(x, h)) return conHora(x, nHora(h.horaInicio) ?? 540); x.setDate(x.getDate() + 1) }
   return x
 }
 function segmentosDia(f, hBase) {
-  const h = horarioOk(hBase)
-  const ini = nHora(h.horaInicio) ?? 540
-  const fin = nHora(h.horaFin) ?? 1200
+  const h = horarioOk(hBase), ini = nHora(h.horaInicio) ?? 540, fin = nHora(h.horaFin) ?? 1200
   let segmentos = [[ini, fin]]
   const pausas = (h.pausas || []).map((p) => ({ ini: nHora(p.inicio), fin: nHora(p.fin) })).filter((p) => p.ini !== null && p.fin !== null && p.ini > ini && p.fin > p.ini && p.fin < fin).sort((a, b) => a.ini - b.ini)
   for (const pausa of pausas) {
     const nuevos = []
     for (const [a, b] of segmentos) {
       if (pausa.fin <= a || pausa.ini >= b) nuevos.push([a, b])
-      else {
-        if (pausa.ini > a) nuevos.push([a, pausa.ini])
-        if (pausa.fin < b) nuevos.push([pausa.fin, b])
-      }
+      else { if (pausa.ini > a) nuevos.push([a, pausa.ini]); if (pausa.fin < b) nuevos.push([pausa.fin, b]) }
     }
     segmentos = nuevos
   }
   return segmentos.map(([a, b]) => [conHora(f, a), conHora(f, b)])
 }
 function calcularFinLaboral(inicio, horas, base) {
-  const h = horarioOk(base)
-  let actual = toDate(inicio) || new Date()
-  let restante = Math.round(Number(horas || 0) * 60)
+  const h = horarioOk(base); let actual = toDate(inicio) || new Date(); let restante = Math.round(Number(horas || 0) * 60)
   if (!restante) return null
   for (let i = 0; i < 20000; i++) {
     if (!esLaborable(actual, h)) { actual = siguienteDia(actual, h); continue }
-    const segmentos = segmentosDia(actual, h)
-    const finDia = segmentos[segmentos.length - 1]?.[1]
+    const segmentos = segmentosDia(actual, h), finDia = segmentos[segmentos.length - 1]?.[1]
     if (!finDia || actual >= finDia) { actual = siguienteDia(actual, h); continue }
     let avanzo = false
     for (const [a, b] of segmentos) {
@@ -84,26 +69,17 @@ function calcularFinLaboral(inicio, horas, base) {
       if (actual >= a && actual < b) {
         const disp = Math.floor((b - actual) / 60000)
         if (restante <= disp) return new Date(actual.getTime() + restante * 60000)
-        restante -= disp
-        actual = new Date(b)
-        avanzo = true
+        restante -= disp; actual = new Date(b); avanzo = true
       }
     }
     if (!avanzo || actual >= finDia) actual = siguienteDia(actual, h)
   }
   return null
 }
-function cambiarDia(dia, cantidad) {
-  const f = new Date(`${dia}T12:00:00`)
-  f.setDate(f.getDate() + cantidad)
-  return fechaDiaInput(f)
-}
-function rangoDia(dia) {
-  return { inicio: new Date(`${dia}T00:00:00`), fin: new Date(`${dia}T23:59:59.999`) }
-}
+const cambiarDia = (dia, cantidad) => { const f = new Date(`${dia}T12:00:00`); f.setDate(f.getDate() + cantidad); return fechaDiaInput(f) }
+const rangoDia = (dia) => ({ inicio: new Date(`${dia}T00:00:00`), fin: new Date(`${dia}T23:59:59.999`) })
 function trabajoEnDia(t, mecanico, dia) {
-  const ini = toDate(t.fechaInicio)
-  if (!ini) return false
+  const ini = toDate(t.fechaInicio); if (!ini) return false
   const fin = calcularFinLaboral(t.fechaInicio, t.duracionHoras, t.horario || mecanico?.horario) || ini
   const r = rangoDia(dia)
   return ini <= r.fin && fin >= r.inicio
@@ -128,7 +104,7 @@ export default function AgendaMecanicosPage() {
     const lista = q ? vehiculos.filter((v) => normalizar(`${v.matricula} ${v.numeroOR} ${v.cliente} ${v.marcaModelo}`).includes(q)) : vehiculos
     return lista.slice(0, 100)
   }, [vehiculos, busqueda])
-  const trabajosDelDia = useMemo(() => trabajos.filter((t) => trabajoEnDia(t, mecanicosActivos.find((m) => m.id === t.mecanicoId), diaPlanificacion)), [trabajos, mecanicosActivos, diaPlanificacion])
+  const trabajosDelDia = useMemo(() => trabajos.filter((t) => trabajoEnDia(t, mecanicosActivos.find((m) => mismoMecanico(t, m)), diaPlanificacion)), [trabajos, mecanicosActivos, diaPlanificacion])
   const resumen = useMemo(() => ({
     total: trabajosDelDia.length,
     pendientes: trabajosDelDia.filter((t) => !t.estado || t.estado === "pendiente").length,
@@ -141,24 +117,15 @@ export default function AgendaMecanicosPage() {
 
   async function cargarDatos() {
     try {
-      const [mecSnap, usersSnap, vehSnap, traSnap] = await Promise.all([
-        getDocs(collection(db, "mecanicos")),
-        getDocs(collection(db, "users")),
-        getDocs(collection(db, "cuestionarios_cliente")),
-        getDocs(collection(db, "agenda_mecanicos")),
-      ])
-      const mapa = new Map()
-      const ocultos = new Set()
+      const [mecSnap, usersSnap, vehSnap, traSnap] = await Promise.all([getDocs(collection(db, "mecanicos")), getDocs(collection(db, "users")), getDocs(collection(db, "cuestionarios_cliente")), getDocs(collection(db, "agenda_mecanicos"))])
+      const mapa = new Map(), ocultos = new Set()
       mecSnap.docs.forEach((d) => {
-        const x = d.data() || {}
-        const nom = x.nombre || x.displayName || x.email || "Mecanico"
+        const x = d.data() || {}, nom = x.nombre || x.displayName || x.email || "Mecanico"
         if (x.activo === false) { ocultos.add(d.id); ocultos.add(x.uid || ""); ocultos.add(normalizar(nom)); return }
         mapa.set(d.id, { id: d.id, nombre: nom, activo: true, uid: x.uid || d.id, horario: horarioOk(x.horario), origen: "manual", ...x })
       })
       usersSnap.docs.forEach((d) => {
-        const x = d.data() || {}
-        const rol = String(x.rol || x.role || "").toUpperCase()
-        const nom = x.nombre || x.displayName || x.name || x.email || "Mecanico"
+        const x = d.data() || {}, rol = String(x.rol || x.role || "").toUpperCase(), nom = x.nombre || x.displayName || x.name || x.email || "Mecanico"
         if (rol.includes("MECANICO") && !ocultos.has(d.id) && !ocultos.has(normalizar(nom)) && !mapa.has(d.id)) mapa.set(d.id, { id: d.id, nombre: nom, activo: x.activo !== false, uid: d.id, horario: horarioOk(x.horario), origen: "usuario" })
       })
       MECANICOS_BASE.forEach((nom) => {
@@ -166,26 +133,19 @@ export default function AgendaMecanicosPage() {
         if (!ocultos.has(id) && !ocultos.has(normalizar(nom)) && !Array.from(mapa.values()).some((m) => normalizar(m.nombre) === normalizar(nom))) mapa.set(id, { id, nombre: nom, activo: true, horario: DEFAULT_HORARIO, origen: "base" })
       })
       const listaVehiculos = vehSnap.docs.map((d) => {
-        const raw = d.data() || {}
-        const x = raw.datos || raw || {}
-        const creado = raw.creadoEn || raw.createdAt || x.creadoEn || x.createdAt || null
+        const raw = d.data() || {}, x = raw.datos || raw || {}, creado = raw.creadoEn || raw.createdAt || x.creadoEn || x.createdAt || null
         const creadoMs = creado?.toMillis?.() || (creado?.seconds ? creado.seconds * 1000 : 0)
         return { id: d.id, matricula: x.matricula || "", numeroOR: x.numeroOR || "", cliente: x.nombreCliente || x.nombre || "", marcaModelo: x.marcaModelo || x.modelo || "", estadoPresupuesto: raw.estadoPresupuesto || x.estadoPresupuesto || "", creadoMs }
       }).filter((v) => !["FINALIZADO", "DENEGADO"].includes(String(v.estadoPresupuesto || "").toUpperCase())).sort((a, b) => (b.creadoMs || 0) - (a.creadoMs || 0))
       const listaMec = Array.from(mapa.values()).map((m) => ({ ...m, horario: horarioOk(m.horario) })).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)))
       const listaTrab = traSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (toDate(a.fechaInicio) || new Date(0)) - (toDate(b.fechaInicio) || new Date(0)))
-      setMecanicos(listaMec)
-      setVehiculos(listaVehiculos)
-      setTrabajos(listaTrab)
+      setMecanicos(listaMec); setVehiculos(listaVehiculos); setTrabajos(listaTrab)
       setForm((f) => ({ ...f, mecanicoId: f.mecanicoId || listaMec[0]?.id || "", vehiculoId: f.vehiculoId || listaVehiculos[0]?.id || "" }))
     } catch (e) { console.error(e); mostrar("error", "Error", "No se ha podido cargar la agenda.") }
   }
 
   async function agregarMecanico(e) {
-    e.preventDefault()
-    const nom = nombre.trim()
-    if (!nom) return
-    setGuardando(true)
+    e.preventDefault(); const nom = nombre.trim(); if (!nom) return; setGuardando(true)
     try { await addDoc(collection(db, "mecanicos"), { nombre: nom, activo: true, horario: DEFAULT_HORARIO, creadoEn: serverTimestamp() }); setNombre(""); await cargarDatos(); mostrar("ok", "Mecanico añadido", `${nom} se ha añadido a la agenda.`) }
     catch (e) { console.error(e); mostrar("error", "Error", "No se ha podido añadir el mecanico.") }
     finally { setGuardando(false) }
@@ -234,7 +194,7 @@ export default function AgendaMecanicosPage() {
           {form.tipoVehiculo === "existente" ? <div className="space-y-3 rounded-lg border bg-gray-50 p-4"><input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Busca por matricula, OR, cliente o modelo"/><select value={form.vehiculoId} onChange={(e) => setForm({ ...form, vehiculoId: e.target.value })} className="w-full border rounded px-3 py-2"><option value="">Selecciona vehiculo</option>{vehiculosFiltrados.map((v) => <option key={v.id} value={v.id}>{v.matricula || "Sin matricula"} | OR {v.numeroOR || "Sin OR"} {v.cliente ? `| ${v.cliente}` : ""} {v.marcaModelo ? `| ${v.marcaModelo}` : ""}</option>)}</select><p className="text-xs text-gray-500">Los vehiculos aparecen de mas recientes a mas antiguos.</p></div> : <div className="rounded-lg border bg-gray-50 p-4 grid grid-cols-1 md:grid-cols-2 gap-4"><input value={form.manualMatricula} onChange={(e) => setForm({ ...form, manualMatricula: e.target.value.toUpperCase() })} className="border rounded px-3 py-2" placeholder="Matricula"/><input value={form.manualNumeroOR} onChange={(e) => setForm({ ...form, manualNumeroOR: e.target.value })} className="border rounded px-3 py-2" placeholder="Nº OR / referencia"/><input value={form.manualCliente} onChange={(e) => setForm({ ...form, manualCliente: e.target.value })} className="border rounded px-3 py-2" placeholder="Cliente"/><input value={form.manualMarcaModelo} onChange={(e) => setForm({ ...form, manualMarcaModelo: e.target.value })} className="border rounded px-3 py-2" placeholder="Marca / modelo"/></div>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><label>Fecha y hora de inicio<input type="datetime-local" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })} className="w-full border rounded px-3 py-2"/></label><label>Tiempo estimado de reparacion<div className="flex"><input type="number" min="0.25" step="0.25" value={form.duracionHoras} onChange={(e) => setForm({ ...form, duracionHoras: e.target.value })} className="w-full border rounded-l px-3 py-2"/><span className="border border-l-0 rounded-r px-3 py-2 bg-gray-100">horas</span></div><p className="text-xs text-gray-500">El horario por defecto es 09:00-14:00 y 16:30-20:00.</p></label><label>Estado<select value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} className="w-full border rounded px-3 py-2"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select></label><label>Notas<input value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} className="w-full border rounded px-3 py-2" placeholder="Notas"/></label></div><button disabled={guardando} className="bg-blue-700 text-white px-5 py-2 rounded">Asignar vehiculo</button></form>
       </section>
-      <section className="bg-white rounded-xl shadow p-5 print-area"><div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center mb-4"><div><h2 className="text-xl font-bold">Planificacion</h2><p className="text-sm text-gray-600 capitalize">{fechaDiaTexto(diaPlanificacion)}</p><p className="text-sm text-gray-500 print:block hidden">Impreso el {new Date().toLocaleString("es-ES")}</p></div><div className="flex flex-wrap gap-2 no-print"><button type="button" onClick={() => setDiaPlanificacion(cambiarDia(diaPlanificacion, -1))} className="bg-gray-600 text-white px-3 py-2 rounded">← Día anterior</button><input type="date" value={diaPlanificacion} onChange={(e) => setDiaPlanificacion(e.target.value)} className="border rounded px-3 py-2"/><button type="button" onClick={() => setDiaPlanificacion(fechaDiaInput())} className="bg-blue-700 text-white px-3 py-2 rounded">Hoy</button><button type="button" onClick={() => setDiaPlanificacion(cambiarDia(diaPlanificacion, 1))} className="bg-gray-600 text-white px-3 py-2 rounded">Día siguiente →</button><button onClick={imprimirPlanificacion} className="bg-green-600 text-white px-4 py-2 rounded">Imprimir planificación</button><button onClick={cargarDatos} className="bg-gray-700 text-white px-4 py-2 rounded">Actualizar</button></div></div><div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"><strong>Recordatorio:</strong> cuando se finalice un trabajo, avisar al asesor por chat o presencialmente.</div><div className="print-summary grid grid-cols-2 md:grid-cols-4 gap-3 mb-5"><div className="bg-gray-50 border rounded p-3"><p className="text-xs text-gray-500">Trabajos del día</p><b>{resumen.total}</b></div><div className="bg-yellow-50 border rounded p-3"><p className="text-xs text-gray-500">Pendientes</p><b>{resumen.pendientes}</b></div><div className="bg-blue-50 border rounded p-3"><p className="text-xs text-gray-500">En proceso</p><b>{resumen.enProceso}</b></div><div className="bg-green-50 border rounded p-3"><p className="text-xs text-gray-500">Terminados</p><b>{resumen.terminados}</b></div></div><div className="grid grid-cols-1 xl:grid-cols-2 gap-5 print-grid">{mecanicosActivos.map((m) => { const lista = trabajosDelDia.filter((t) => t.mecanicoId === m.id); const horas = lista.reduce((a, t) => a + Number(t.duracionHoras || 0), 0); return <div key={m.id} className="border rounded-xl overflow-hidden print-card"><div className="bg-blue-900 text-white px-4 py-3 flex justify-between"><h3 className="font-bold text-lg">{m.nombre}</h3><span>{lista.length} trabajos · {duracionTxt(horas)}</span></div><p className="text-xs text-gray-500 px-4 pt-3">Horario: {horarioTxt(m.horario)}</p>{lista.length === 0 ? <p className="p-4 text-gray-500">Sin vehículos asignados este día.</p> : lista.map((t) => { const fin = calcularFinLaboral(t.fechaInicio, t.duracionHoras, t.horario || m.horario); return <article key={t.id} className="p-4 border-t space-y-2"><div className="flex justify-between gap-3"><h4 className="font-bold">{t.matricula || "Sin matrícula"} - OR {t.numeroOR || "Sin OR"}</h4><span className={`text-xs border px-2 py-1 rounded-full font-bold ${badge(t.estado)}`}>{estadoTxt(t.estado)}</span></div><p className="text-sm text-gray-600">{t.cliente || "Sin cliente"} {t.marcaModelo ? `- ${t.marcaModelo}` : ""}</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm"><p>Inicio: <strong>{fechaTexto(t.fechaInicio)}</strong></p><p>Finalización estimada: <strong>{fechaTexto(fin)}</strong></p><p>Tiempo total estimado: <strong>{duracionTxt(t.duracionHoras)}</strong></p></div><p className="text-sm rounded bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900"><strong>Al finalizar:</strong> avisar al asesor por chat o presencialmente.</p>{t.notas && <p className="text-sm">Notas: {t.notas}</p>}<div className="flex gap-2 no-print"><select value={t.estado || "pendiente"} onChange={(e) => cambiarEstado(t.id, e.target.value)} className="border rounded px-2 py-1 text-sm"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select><button onClick={() => borrarTrabajo(t.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm">Eliminar</button></div></article>})}</div>})}</div></section>
+      <section className="bg-white rounded-xl shadow p-5 print-area"><div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center mb-4"><div><h2 className="text-xl font-bold">Planificacion</h2><p className="text-sm text-gray-600 capitalize">{fechaDiaTexto(diaPlanificacion)}</p><p className="text-sm text-gray-500 print:block hidden">Impreso el {new Date().toLocaleString("es-ES")}</p></div><div className="flex flex-wrap gap-2 no-print"><button type="button" onClick={() => setDiaPlanificacion(cambiarDia(diaPlanificacion, -1))} className="bg-gray-600 text-white px-3 py-2 rounded">← Día anterior</button><input type="date" value={diaPlanificacion} onChange={(e) => setDiaPlanificacion(e.target.value)} className="border rounded px-3 py-2"/><button type="button" onClick={() => setDiaPlanificacion(fechaDiaInput())} className="bg-blue-700 text-white px-3 py-2 rounded">Hoy</button><button type="button" onClick={() => setDiaPlanificacion(cambiarDia(diaPlanificacion, 1))} className="bg-gray-600 text-white px-3 py-2 rounded">Día siguiente →</button><button onClick={imprimirPlanificacion} className="bg-green-600 text-white px-4 py-2 rounded">Imprimir planificación</button><button onClick={cargarDatos} className="bg-gray-700 text-white px-4 py-2 rounded">Actualizar</button></div></div><div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"><strong>Recordatorio:</strong> cuando se finalice un trabajo, avisar al asesor por chat o presencialmente.</div><div className="print-summary grid grid-cols-2 md:grid-cols-4 gap-3 mb-5"><div className="bg-gray-50 border rounded p-3"><p className="text-xs text-gray-500">Trabajos del día</p><b>{resumen.total}</b></div><div className="bg-yellow-50 border rounded p-3"><p className="text-xs text-gray-500">Pendientes</p><b>{resumen.pendientes}</b></div><div className="bg-blue-50 border rounded p-3"><p className="text-xs text-gray-500">En proceso</p><b>{resumen.enProceso}</b></div><div className="bg-green-50 border rounded p-3"><p className="text-xs text-gray-500">Terminados</p><b>{resumen.terminados}</b></div></div><div className="grid grid-cols-1 xl:grid-cols-2 gap-5 print-grid">{mecanicosActivos.map((m) => { const lista = trabajosDelDia.filter((t) => mismoMecanico(t, m)); const horas = lista.reduce((a, t) => a + Number(t.duracionHoras || 0), 0); return <div key={m.id} className="border rounded-xl overflow-hidden print-card"><div className="bg-blue-900 text-white px-4 py-3 flex justify-between"><h3 className="font-bold text-lg">{m.nombre}</h3><span>{lista.length} trabajos · {duracionTxt(horas)}</span></div><p className="text-xs text-gray-500 px-4 pt-3">Horario: {horarioTxt(m.horario)}</p>{lista.length === 0 ? <p className="p-4 text-gray-500">Sin vehículos asignados este día.</p> : lista.map((t) => { const fin = calcularFinLaboral(t.fechaInicio, t.duracionHoras, t.horario || m.horario); return <article key={t.id} className="p-4 border-t space-y-2"><div className="flex justify-between gap-3"><h4 className="font-bold">{t.matricula || "Sin matrícula"} - OR {t.numeroOR || "Sin OR"}</h4><span className={`text-xs border px-2 py-1 rounded-full font-bold ${badge(t.estado)}`}>{estadoTxt(t.estado)}</span></div><p className="text-sm text-gray-600">{t.cliente || "Sin cliente"} {t.marcaModelo ? `- ${t.marcaModelo}` : ""}</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm"><p>Inicio: <strong>{fechaTexto(t.fechaInicio)}</strong></p><p>Finalización estimada: <strong>{fechaTexto(fin)}</strong></p><p>Tiempo total estimado: <strong>{duracionTxt(t.duracionHoras)}</strong></p></div><p className="text-sm rounded bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900"><strong>Al finalizar:</strong> avisar al asesor por chat o presencialmente.</p>{t.notas && <p className="text-sm">Notas: {t.notas}</p>}<div className="flex gap-2 no-print"><select value={t.estado || "pendiente"} onChange={(e) => cambiarEstado(t.id, e.target.value)} className="border rounded px-2 py-1 text-sm"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select><button onClick={() => borrarTrabajo(t.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm">Eliminar</button></div></article>})}</div>})}</div></section>
     </div>
   </main>
 }
