@@ -12,11 +12,45 @@ function fechaInput(valor) {
   return `${fecha.getFullYear()}-${pad(fecha.getMonth() + 1)}-${pad(fecha.getDate())}T${pad(fecha.getHours())}:${pad(fecha.getMinutes())}`
 }
 
-function fechaTexto(valor) {
-  if (!valor) return "Sin fecha"
+function getFecha(valor) {
+  if (!valor) return null
   const fecha = valor?.toDate?.() ? valor.toDate() : new Date(valor)
-  if (Number.isNaN(fecha.getTime())) return "Sin fecha"
+  return Number.isNaN(fecha.getTime()) ? null : fecha
+}
+
+function fechaTexto(valor) {
+  const fecha = getFecha(valor)
+  if (!fecha) return "Sin fecha"
   return fecha.toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+}
+
+function fechaFin(valor, horas) {
+  const inicio = getFecha(valor)
+  const duracion = Number(horas || 0)
+  if (!inicio || !duracion) return null
+  return new Date(inicio.getTime() + duracion * 60 * 60 * 1000)
+}
+
+function fechaFinTexto(valor, horas) {
+  const fin = fechaFin(valor, horas)
+  if (!fin) return "Sin estimar"
+  return fin.toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+}
+
+function duracionTexto(horas) {
+  const h = Number(horas || 0)
+  if (!h) return "Sin estimar"
+  const horasEnteras = Math.floor(h)
+  const minutos = Math.round((h - horasEnteras) * 60)
+  if (horasEnteras > 0 && minutos > 0) return `${horasEnteras} h ${minutos} min`
+  if (horasEnteras > 0) return `${horasEnteras} h`
+  return `${minutos} min`
+}
+
+function estaRetrasado(trabajo) {
+  if (trabajo.estado === "terminado") return false
+  const fin = fechaFin(trabajo.fechaInicio, trabajo.duracionHoras)
+  return !!fin && fin < new Date()
 }
 
 function normalizar(texto) {
@@ -31,6 +65,12 @@ function nombreEstado(estado) {
   if (estado === "en_proceso") return "En proceso"
   if (estado === "terminado") return "Terminado"
   return "Pendiente"
+}
+
+function badgeEstado(estado) {
+  if (estado === "terminado") return "bg-green-100 text-green-800 border-green-200"
+  if (estado === "en_proceso") return "bg-blue-100 text-blue-800 border-blue-200"
+  return "bg-yellow-100 text-yellow-800 border-yellow-200"
 }
 
 export default function AgendaMecanicosPage() {
@@ -63,6 +103,18 @@ export default function AgendaMecanicosPage() {
     return vehiculos.filter((v) => normalizar(`${v.matricula} ${v.numeroOR} ${v.cliente} ${v.marcaModelo}`).includes(q)).slice(0, 80)
   }, [vehiculos, busquedaVehiculo])
 
+  const resumen = useMemo(() => {
+    const totalHoras = trabajos.reduce((acc, t) => acc + Number(t.duracionHoras || 0), 0)
+    return {
+      total: trabajos.length,
+      pendientes: trabajos.filter((t) => !t.estado || t.estado === "pendiente").length,
+      enProceso: trabajos.filter((t) => t.estado === "en_proceso").length,
+      terminados: trabajos.filter((t) => t.estado === "terminado").length,
+      retrasados: trabajos.filter((t) => estaRetrasado(t)).length,
+      totalHoras,
+    }
+  }, [trabajos])
+
   useEffect(() => { cargarDatos() }, [])
 
   async function cargarDatos() {
@@ -75,20 +127,30 @@ export default function AgendaMecanicosPage() {
         getDocs(collection(db, "agenda_mecanicos")),
       ])
 
+      const ocultos = new Set()
+      mecSnap.docs.forEach((d) => {
+        const data = d.data() || {}
+        if (data.activo === false) {
+          ocultos.add(data.uid || d.id)
+          ocultos.add(normalizar(data.nombre))
+        }
+      })
+
       const mapaMecanicos = new Map()
 
       mecSnap.docs.forEach((d) => {
         const data = d.data() || {}
+        if (data.activo === false) return
         const nombre = data.nombre || data.displayName || data.email || "Mecanico"
-        mapaMecanicos.set(d.id, { id: d.id, nombre, activo: data.activo !== false, origen: "manual", ...data })
+        mapaMecanicos.set(d.id, { id: d.id, nombre, activo: true, origen: "manual", ...data })
       })
 
       usersSnap.docs.forEach((d) => {
         const data = d.data() || {}
         const rol = String(data.rol || data.role || "").toUpperCase()
-        if (rol.includes("MECANICO")) {
+        if (rol.includes("MECANICO") && !ocultos.has(d.id)) {
           const nombre = data.nombre || data.displayName || data.name || data.email || "Mecanico"
-          if (!mapaMecanicos.has(d.id)) {
+          if (!ocultos.has(normalizar(nombre)) && !mapaMecanicos.has(d.id)) {
             mapaMecanicos.set(d.id, { id: d.id, nombre, activo: data.activo !== false, origen: "usuario", uid: d.id })
           }
         }
@@ -100,14 +162,9 @@ export default function AgendaMecanicosPage() {
 
         if (docData.asignadoMecanicoUid || docData.asignadoMecanicoNombre) {
           const mecId = docData.asignadoMecanicoUid || `asignado-${normalizar(docData.asignadoMecanicoNombre)}`
-          if (!mapaMecanicos.has(mecId)) {
-            mapaMecanicos.set(mecId, {
-              id: mecId,
-              nombre: docData.asignadoMecanicoNombre || "Mecanico asignado",
-              activo: true,
-              origen: "asignado",
-              uid: docData.asignadoMecanicoUid || null,
-            })
+          const nombre = docData.asignadoMecanicoNombre || "Mecanico asignado"
+          if (!ocultos.has(mecId) && !ocultos.has(normalizar(nombre)) && !mapaMecanicos.has(mecId)) {
+            mapaMecanicos.set(mecId, { id: mecId, nombre, activo: true, origen: "asignado", uid: docData.asignadoMecanicoUid || null })
           }
         }
 
@@ -127,8 +184,8 @@ export default function AgendaMecanicosPage() {
       const listaMecanicos = Array.from(mapaMecanicos.values()).sort((a, b) => String(a.nombre || "").localeCompare(String(b.nombre || "")))
 
       const listaTrabajos = traSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => {
-        const fa = a.fechaInicio?.toDate?.() ? a.fechaInicio.toDate() : new Date(a.fechaInicio || 0)
-        const fb = b.fechaInicio?.toDate?.() ? b.fechaInicio.toDate() : new Date(b.fechaInicio || 0)
+        const fa = getFecha(a.fechaInicio) || new Date(0)
+        const fb = getFecha(b.fechaInicio) || new Date(0)
         return fa - fb
       })
 
@@ -181,14 +238,7 @@ export default function AgendaMecanicosPage() {
     e.preventDefault()
     const mecanico = mecanicosActivos.find((m) => m.id === form.mecanicoId)
     const vehiculo = form.tipoVehiculo === "manual"
-      ? {
-          id: `manual-${Date.now()}`,
-          matricula: form.manualMatricula.trim(),
-          numeroOR: form.manualNumeroOR.trim(),
-          cliente: form.manualCliente.trim(),
-          marcaModelo: form.manualMarcaModelo.trim(),
-          manual: true,
-        }
+      ? { id: `manual-${Date.now()}`, matricula: form.manualMatricula.trim(), numeroOR: form.manualNumeroOR.trim(), cliente: form.manualCliente.trim(), marcaModelo: form.manualMarcaModelo.trim(), manual: true }
       : vehiculos.find((v) => v.id === form.vehiculoId)
 
     if (!mecanico) { setMensaje("Selecciona mecanico."); return }
@@ -248,12 +298,12 @@ export default function AgendaMecanicosPage() {
       `}</style>
 
       <div className="max-w-7xl mx-auto space-y-6">
-        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between no-print">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Agenda Mecanicos</h1>
             <p className="text-gray-600 mt-1">Añade mecanicos y asigna vehiculos a reparar con duracion estimada.</p>
           </div>
-          <div className="flex gap-3 flex-wrap no-print">
+          <div className="flex gap-3 flex-wrap">
             <button onClick={() => router.push("/calendario-citas")} className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700">Calendario de Citas</button>
             <button onClick={() => router.push("/calendarios")} className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">Volver a Calendarios</button>
           </div>
@@ -271,10 +321,7 @@ export default function AgendaMecanicosPage() {
               <h3 className="font-semibold">Mecanicos activos</h3>
               {mecanicosActivos.length === 0 ? <p className="text-sm text-gray-500">Todavia no hay mecanicos.</p> : mecanicosActivos.map((m) => (
                 <div key={m.id} className="flex justify-between items-center bg-gray-50 rounded px-3 py-2">
-                  <div>
-                    <span className="font-medium">{m.nombre}</span>
-                    {m.origen && <span className="ml-2 text-xs text-gray-500">{m.origen === "manual" ? "Añadido" : "Detectado"}</span>}
-                  </div>
+                  <span className="font-medium">{m.nombre}</span>
                   <button type="button" onClick={() => quitarMecanico(m)} className="text-red-600 text-sm font-semibold hover:underline">Quitar</button>
                 </div>
               ))}
@@ -285,64 +332,24 @@ export default function AgendaMecanicosPage() {
             <h2 className="text-xl font-bold">Asignar vehiculo a mecanico</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="space-y-1">
-                <span className="text-sm font-semibold">Mecanico</span>
-                <select value={form.mecanicoId} onChange={(e) => setForm({ ...form, mecanicoId: e.target.value })} className="w-full border rounded px-3 py-2">
-                  <option value="">Selecciona mecanico</option>
-                  {mecanicosActivos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-                </select>
-              </label>
-
-              <label className="space-y-1">
-                <span className="text-sm font-semibold">Tipo de vehiculo</span>
-                <select value={form.tipoVehiculo} onChange={(e) => setForm({ ...form, tipoVehiculo: e.target.value })} className="w-full border rounded px-3 py-2">
-                  <option value="existente">Buscar vehiculo de la aplicacion</option>
-                  <option value="manual">Agregar vehiculo manual</option>
-                </select>
-              </label>
+              <label className="space-y-1"><span className="text-sm font-semibold">Mecanico</span><select value={form.mecanicoId} onChange={(e) => setForm({ ...form, mecanicoId: e.target.value })} className="w-full border rounded px-3 py-2"><option value="">Selecciona mecanico</option>{mecanicosActivos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></label>
+              <label className="space-y-1"><span className="text-sm font-semibold">Tipo de vehiculo</span><select value={form.tipoVehiculo} onChange={(e) => setForm({ ...form, tipoVehiculo: e.target.value })} className="w-full border rounded px-3 py-2"><option value="existente">Buscar vehiculo de la aplicacion</option><option value="manual">Agregar vehiculo manual</option></select></label>
             </div>
 
             {form.tipoVehiculo === "existente" ? (
               <div className="space-y-3 rounded-lg border bg-gray-50 p-4">
-                <label className="space-y-1 block">
-                  <span className="text-sm font-semibold">Buscar entre vehiculos de la aplicacion</span>
-                  <input value={busquedaVehiculo} onChange={(e) => setBusquedaVehiculo(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Busca por matricula, OR, cliente o modelo" />
-                </label>
-                <select value={form.vehiculoId} onChange={(e) => setForm({ ...form, vehiculoId: e.target.value })} className="w-full border rounded px-3 py-2">
-                  <option value="">Selecciona vehiculo</option>
-                  {vehiculosFiltrados.map((v) => <option key={v.id} value={v.id}>{v.matricula || "Sin matricula"} | OR {v.numeroOR || "Sin OR"} {v.cliente ? `| ${v.cliente}` : ""} {v.marcaModelo ? `| ${v.marcaModelo}` : ""}</option>)}
-                </select>
+                <label className="space-y-1 block"><span className="text-sm font-semibold">Buscar entre vehiculos de la aplicacion</span><input value={busquedaVehiculo} onChange={(e) => setBusquedaVehiculo(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Busca por matricula, OR, cliente o modelo" /></label>
+                <select value={form.vehiculoId} onChange={(e) => setForm({ ...form, vehiculoId: e.target.value })} className="w-full border rounded px-3 py-2"><option value="">Selecciona vehiculo</option>{vehiculosFiltrados.map((v) => <option key={v.id} value={v.id}>{v.matricula || "Sin matricula"} | OR {v.numeroOR || "Sin OR"} {v.cliente ? `| ${v.cliente}` : ""} {v.marcaModelo ? `| ${v.marcaModelo}` : ""}</option>)}</select>
               </div>
             ) : (
-              <div className="rounded-lg border bg-gray-50 p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input value={form.manualMatricula} onChange={(e) => setForm({ ...form, manualMatricula: e.target.value.toUpperCase() })} className="w-full border rounded px-3 py-2" placeholder="Matricula" />
-                <input value={form.manualNumeroOR} onChange={(e) => setForm({ ...form, manualNumeroOR: e.target.value })} className="w-full border rounded px-3 py-2" placeholder="Nº OR / referencia" />
-                <input value={form.manualCliente} onChange={(e) => setForm({ ...form, manualCliente: e.target.value })} className="w-full border rounded px-3 py-2" placeholder="Cliente" />
-                <input value={form.manualMarcaModelo} onChange={(e) => setForm({ ...form, manualMarcaModelo: e.target.value })} className="w-full border rounded px-3 py-2" placeholder="Marca / modelo" />
-              </div>
+              <div className="rounded-lg border bg-gray-50 p-4 grid grid-cols-1 md:grid-cols-2 gap-4"><input value={form.manualMatricula} onChange={(e) => setForm({ ...form, manualMatricula: e.target.value.toUpperCase() })} className="w-full border rounded px-3 py-2" placeholder="Matricula" /><input value={form.manualNumeroOR} onChange={(e) => setForm({ ...form, manualNumeroOR: e.target.value })} className="w-full border rounded px-3 py-2" placeholder="Nº OR / referencia" /><input value={form.manualCliente} onChange={(e) => setForm({ ...form, manualCliente: e.target.value })} className="w-full border rounded px-3 py-2" placeholder="Cliente" /><input value={form.manualMarcaModelo} onChange={(e) => setForm({ ...form, manualMarcaModelo: e.target.value })} className="w-full border rounded px-3 py-2" placeholder="Marca / modelo" /></div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="space-y-1">
-                <span className="text-sm font-semibold">Fecha y hora de inicio</span>
-                <input type="datetime-local" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })} className="w-full border rounded px-3 py-2" />
-              </label>
-              <label className="space-y-1">
-                <span className="text-sm font-semibold">Tiempo estimado de reparacion</span>
-                <div className="flex">
-                  <input type="number" min="0.25" step="0.25" value={form.duracionHoras} onChange={(e) => setForm({ ...form, duracionHoras: e.target.value })} className="w-full border rounded-l px-3 py-2" placeholder="Ej: 2" />
-                  <span className="border border-l-0 rounded-r px-3 py-2 bg-gray-100 text-gray-700">horas</span>
-                </div>
-                <p className="text-xs text-gray-500">Ejemplos: 0.5 = media hora, 1 = una hora, 2 = dos horas.</p>
-              </label>
-              <label className="space-y-1">
-                <span className="text-sm font-semibold">Estado</span>
-                <select value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} className="w-full border rounded px-3 py-2"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-sm font-semibold">Notas</span>
-                <input value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} className="w-full border rounded px-3 py-2" placeholder="Notas" />
-              </label>
+              <label className="space-y-1"><span className="text-sm font-semibold">Fecha y hora de inicio</span><input type="datetime-local" value={form.fechaInicio} onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })} className="w-full border rounded px-3 py-2" /></label>
+              <label className="space-y-1"><span className="text-sm font-semibold">Tiempo estimado de reparacion</span><div className="flex"><input type="number" min="0.25" step="0.25" value={form.duracionHoras} onChange={(e) => setForm({ ...form, duracionHoras: e.target.value })} className="w-full border rounded-l px-3 py-2" placeholder="Ej: 2" /><span className="border border-l-0 rounded-r px-3 py-2 bg-gray-100 text-gray-700">horas</span></div><p className="text-xs text-gray-500">Ejemplos: 0.5 = media hora, 1 = una hora, 2 = dos horas.</p></label>
+              <label className="space-y-1"><span className="text-sm font-semibold">Estado</span><select value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} className="w-full border rounded px-3 py-2"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select></label>
+              <label className="space-y-1"><span className="text-sm font-semibold">Notas</span><input value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} className="w-full border rounded px-3 py-2" placeholder="Notas" /></label>
             </div>
             <button disabled={guardando} className="bg-blue-700 text-white px-5 py-2 rounded hover:bg-blue-800 disabled:opacity-60">Asignar vehiculo</button>
           </form>
@@ -354,27 +361,33 @@ export default function AgendaMecanicosPage() {
               <h2 className="text-xl font-bold">Planificacion</h2>
               <p className="text-sm text-gray-500 print:block hidden">Impreso el {new Date().toLocaleString("es-ES")}</p>
             </div>
-            <div className="flex gap-2 no-print">
-              <button onClick={imprimirPlanificacion} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Imprimir planificacion</button>
-              <button onClick={cargarDatos} className="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-800">Actualizar</button>
-            </div>
+            <div className="flex gap-2 no-print"><button onClick={imprimirPlanificacion} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Imprimir planificacion</button><button onClick={cargarDatos} className="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-800">Actualizar</button></div>
           </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+            <div className="bg-gray-50 border rounded p-3"><p className="text-xs text-gray-500">Trabajos</p><p className="text-xl font-bold">{resumen.total}</p></div>
+            <div className="bg-yellow-50 border rounded p-3"><p className="text-xs text-gray-500">Pendientes</p><p className="text-xl font-bold">{resumen.pendientes}</p></div>
+            <div className="bg-blue-50 border rounded p-3"><p className="text-xs text-gray-500">En proceso</p><p className="text-xl font-bold">{resumen.enProceso}</p></div>
+            <div className="bg-green-50 border rounded p-3"><p className="text-xs text-gray-500">Terminados</p><p className="text-xl font-bold">{resumen.terminados}</p></div>
+            <div className="bg-red-50 border rounded p-3"><p className="text-xs text-gray-500">Retrasados</p><p className="text-xl font-bold">{resumen.retrasados}</p></div>
+          </div>
+
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 print-grid">
             {mecanicosActivos.map((mecanico) => {
               const lista = trabajos.filter((t) => t.mecanicoId === mecanico.id)
+              const horasMecanico = lista.reduce((acc, t) => acc + Number(t.duracionHoras || 0), 0)
               return <div key={mecanico.id} className="border rounded-xl overflow-hidden print-card">
-                <div className="bg-blue-900 text-white px-4 py-3 flex justify-between"><h3 className="font-bold text-lg">{mecanico.nombre}</h3><span>{lista.length} trabajos</span></div>
-                {lista.length === 0 ? <p className="p-4 text-gray-500">Sin vehiculos asignados.</p> : lista.map((t) => <article key={t.id} className="p-4 border-t space-y-2">
-                  <h4 className="font-bold">{t.matricula || "Sin matricula"} - OR {t.numeroOR || "Sin OR"} {t.vehiculoManual ? <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded ml-2">Manual</span> : null}</h4>
-                  <p className="text-sm text-gray-600">{t.cliente || "Sin cliente"} {t.marcaModelo ? `- ${t.marcaModelo}` : ""}</p>
-                  <p className="text-sm">Inicio: {fechaTexto(t.fechaInicio)} - Tiempo estimado: {t.duracionHoras || 0} horas</p>
-                  <p className="text-sm">Estado: <span className="font-semibold">{nombreEstado(t.estado)}</span></p>
-                  {t.notas && <p className="text-sm">Notas: {t.notas}</p>}
-                  <div className="flex gap-2 flex-wrap no-print">
-                    <select value={t.estado || "pendiente"} onChange={(e) => cambiarEstado(t.id, e.target.value)} className="border rounded px-2 py-1 text-sm"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select>
-                    <button onClick={() => borrarTrabajo(t.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">Eliminar</button>
-                  </div>
-                </article>)}
+                <div className="bg-blue-900 text-white px-4 py-3 flex justify-between"><h3 className="font-bold text-lg">{mecanico.nombre}</h3><span>{lista.length} trabajos · {duracionTexto(horasMecanico)}</span></div>
+                {lista.length === 0 ? <p className="p-4 text-gray-500">Sin vehiculos asignados.</p> : lista.map((t) => {
+                  const retrasado = estaRetrasado(t)
+                  return <article key={t.id} className={`p-4 border-t space-y-2 ${retrasado ? "bg-red-50" : ""}`}>
+                    <div className="flex justify-between gap-3 flex-wrap"><h4 className="font-bold">{t.matricula || "Sin matricula"} - OR {t.numeroOR || "Sin OR"} {t.vehiculoManual ? <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded ml-2">Manual</span> : null}</h4><span className={`text-xs border px-2 py-1 rounded-full font-bold ${badgeEstado(t.estado)}`}>{nombreEstado(t.estado)}</span></div>
+                    <p className="text-sm text-gray-600">{t.cliente || "Sin cliente"} {t.marcaModelo ? `- ${t.marcaModelo}` : ""}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm"><p>Inicio: <strong>{fechaTexto(t.fechaInicio)}</strong></p><p>Finalizacion estimada: <strong>{fechaFinTexto(t.fechaInicio, t.duracionHoras)}</strong></p><p>Tiempo estimado: <strong>{duracionTexto(t.duracionHoras)}</strong></p>{retrasado && <p className="text-red-700 font-bold">⚠ Trabajo fuera de hora estimada</p>}</div>
+                    {t.notas && <p className="text-sm">Notas: {t.notas}</p>}
+                    <div className="flex gap-2 flex-wrap no-print"><select value={t.estado || "pendiente"} onChange={(e) => cambiarEstado(t.id, e.target.value)} className="border rounded px-2 py-1 text-sm"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="terminado">Terminado</option></select><button onClick={() => borrarTrabajo(t.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">Eliminar</button></div>
+                  </article>
+                })}
               </div>
             })}
           </div>
