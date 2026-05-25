@@ -20,6 +20,16 @@ const fechaTexto = (v) => {
   return d && !Number.isNaN(d.getTime()) ? d.toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Sin fecha";
 };
 
+function mensajeErrorPush(err) {
+  const code = err?.code || "";
+  if (code === "missing-vapid-key") return "Falta configurar la clave VAPID de Firebase en Vercel. La web funciona igual, pero las notificaciones push no se activarán hasta añadir NEXT_PUBLIC_FIREBASE_VAPID_KEY en las variables de entorno.";
+  if (code === "permission-denied") return "Tienes las notificaciones bloqueadas en el navegador. En el móvil entra en ajustes del navegador > permisos del sitio > notificaciones, permite esta web y vuelve a intentarlo.";
+  if (code === "permission-not-granted") return "No se ha concedido el permiso de notificaciones. Pulsa Permitir cuando el navegador lo pida.";
+  if (code === "not-supported") return "Este navegador o dispositivo no soporta notificaciones push web. Prueba con Chrome o Edge actualizado.";
+  if (code === "service-worker-error") return "No se ha podido preparar el servicio de notificaciones del navegador. Recarga la página y prueba otra vez.";
+  return err?.message || "No se han podido activar las notificaciones.";
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -50,13 +60,16 @@ export default function DashboardPage() {
       if (!auth.currentUser) return alert("No hay usuario logueado.");
       setPushStatus("working");
       const token = await registerPushForUser(auth.currentUser.uid, { email: auth.currentUser.email || "" }, { requestPermission: true });
-      if (!token) { setPushStatus("idle"); return alert("No se pudo activar push (permiso denegado o sin VAPID key)."); }
+      if (!token) {
+        setPushStatus("idle");
+        return alert("No se han activado las notificaciones. Revisa los permisos del navegador y vuelve a intentarlo.");
+      }
       setPushStatus("enabled");
       alert("✅ Notificaciones activadas.");
     } catch (err) {
       console.error("Error activando notificaciones:", err);
       setPushStatus("error");
-      alert("Error activando notificaciones: " + (err?.message || err));
+      alert(mensajeErrorPush(err));
     }
   };
 
@@ -203,7 +216,7 @@ export default function DashboardPage() {
         <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
           <div className="min-w-0"><h1 className="text-3xl font-bold">Dashboard</h1><p className="mt-1 text-gray-600 break-words">Bienvenido, {user?.email}</p></div>
           <div className="w-full sm:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-            <button onClick={handleEnableNotifications} disabled={pushStatus === "working"} className={`w-full sm:w-auto px-4 py-3 rounded-lg border-2 border-black shadow-lg transition font-semibold ${pushStatus === "enabled" ? "bg-green-500 text-black hover:bg-green-600" : "bg-yellow-400 text-black hover:bg-yellow-500"}`} title="Activa notificaciones push para avisos de chat">{pushStatus === "working" ? "🔔 Activando..." : pushStatus === "enabled" ? "🔔 Notificaciones ON" : "🔔 Activar notificaciones"}</button>
+            <button onClick={handleEnableNotifications} disabled={pushStatus === "working"} className={`w-full sm:w-auto px-4 py-3 rounded-lg border-2 border-black shadow-lg transition font-semibold ${pushStatus === "enabled" ? "bg-green-500 text-black hover:bg-green-600" : pushStatus === "error" ? "bg-orange-400 text-black hover:bg-orange-500" : "bg-yellow-400 text-black hover:bg-yellow-500"}`} title="Activa notificaciones push para avisos de chat">{pushStatus === "working" ? "🔔 Activando..." : pushStatus === "enabled" ? "🔔 Notificaciones ON" : pushStatus === "error" ? "🔔 Revisar notificaciones" : "🔔 Activar notificaciones"}</button>
             <button onClick={handleSignOut} className="w-full sm:w-auto px-4 py-3 bg-red-500 text-black border-2 border-black rounded-lg shadow-lg hover:bg-red-600 transition font-semibold">✖︎ Salir</button>
           </div>
         </header>
