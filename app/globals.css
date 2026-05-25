@@ -10,11 +10,13 @@
   --app-text: #0f172a;
   --app-muted: #64748b;
   --app-primary: #2563eb;
-  --app-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
-  --app-shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.07);
+  --app-primary-2: #7c3aed;
+  --app-accent: #ec4899;
+  --app-shadow: 0 22px 55px rgba(15, 23, 42, 0.10);
+  --app-shadow-soft: 0 10px 28px rgba(15, 23, 42, 0.08);
+  --app-ring: 0 0 0 4px rgba(37, 99, 235, 0.13);
 }
 
-/* Ajustes generales para que la app funcione mejor en móvil y tablet */
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
@@ -26,8 +28,9 @@ body {
   overflow-x: hidden;
   color: var(--app-text);
   background:
-    radial-gradient(circle at top left, rgba(59, 130, 246, 0.13), transparent 32rem),
-    radial-gradient(circle at top right, rgba(217, 70, 239, 0.10), transparent 30rem),
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 34rem),
+    radial-gradient(circle at top right, rgba(236, 72, 153, 0.13), transparent 34rem),
+    radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.10), transparent 42rem),
     linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
   min-height: 100vh;
 }
@@ -67,34 +70,54 @@ a {
   touch-action: manipulation;
 }
 
-/* Acabado visual general */
 main {
   position: relative;
+}
+
+main::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.34;
+  background-image: linear-gradient(rgba(15, 23, 42, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
 }
 
 h1,
 h2,
 h3 {
-  letter-spacing: -0.025em;
+  letter-spacing: -0.035em;
 }
 
 h1 {
   color: #0b1220;
+  font-weight: 800 !important;
+}
+
+h2,
+h3 {
+  color: #111827;
 }
 
 p,
 label,
 span,
-small {
+small,
+button,
+input,
+select,
+textarea {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Tarjetas y paneles: más modernos, con borde suave y sombra limpia */
+/* Tarjetas y paneles */
 .bg-white {
   background-color: var(--app-card) !important;
   border: 1px solid var(--app-border);
   box-shadow: var(--app-shadow-soft);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(14px);
 }
 
 .shadow,
@@ -110,36 +133,43 @@ small {
   overflow: hidden;
 }
 
-/* Botones: mejor tacto, animación y aspecto uniforme sin perder sus colores */
+/* Botones con estilo más profesional */
 button,
 a[class*="bg-"] {
   transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease, background-color 0.16s ease;
 }
 
+button[class*="bg-"],
+a[class*="bg-"] {
+  border: 0 !important;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+}
+
 button:not(:disabled):hover,
 a[class*="bg-"]:hover {
   transform: translateY(-1px);
-  filter: saturate(1.05);
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+  filter: saturate(1.08) brightness(1.02);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
 }
 
 button:not(:disabled):active,
 a[class*="bg-"]:active {
   transform: translateY(0);
-  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
 }
 
 button:disabled {
   cursor: not-allowed;
 }
 
-/* Inputs más claros y limpios */
+/* Inputs más elegantes */
 input,
 select,
 textarea {
   border-color: rgba(15, 23, 42, 0.13) !important;
   background-color: rgba(255, 255, 255, 0.96);
   color: #0f172a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
 input:focus,
@@ -147,7 +177,7 @@ select:focus,
 textarea:focus {
   outline: none !important;
   border-color: rgba(37, 99, 235, 0.75) !important;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12) !important;
+  box-shadow: var(--app-ring) !important;
 }
 
 input::placeholder,
@@ -155,7 +185,7 @@ textarea::placeholder {
   color: #94a3b8;
 }
 
-/* Listados: tarjetas algo más elegantes */
+/* Listados y tarjetas de colores */
 section > div.bg-green-100,
 section > div.bg-red-100,
 section > div.bg-white,
@@ -163,7 +193,21 @@ article.bg-white {
   border-radius: 1rem;
 }
 
-/* Las tablas grandes no rompen la pantalla: se desplazan en horizontal */
+.bg-green-100,
+.bg-red-100,
+.bg-blue-100,
+.bg-yellow-100,
+.bg-purple-50,
+.bg-fuchsia-50,
+.bg-amber-50,
+.bg-blue-50,
+.bg-green-50,
+.bg-red-50,
+.bg-yellow-50 {
+  border: 1px solid rgba(15, 23, 42, 0.07);
+}
+
+/* Tablas */
 table {
   border-collapse: collapse;
 }
@@ -239,7 +283,11 @@ tr {
     padding: 0.75rem !important;
   }
 
-  /* En móvil, los encabezados y barras de acciones pasan a una columna */
+  main::before {
+    opacity: 0.18;
+    background-size: 32px 32px;
+  }
+
   header,
   header > div,
   main > div > header,
@@ -247,7 +295,6 @@ tr {
     max-width: 100%;
   }
 
-  /* Botoneras que antes usaban space-x se adaptan y no se salen de pantalla */
   .space-x-2,
   .space-x-3,
   .space-x-4,
@@ -264,7 +311,6 @@ tr {
     margin-left: 0 !important;
   }
 
-  /* Los botones y campos son más cómodos para pulsar con el dedo */
   button,
   a[class*="px-"],
   label[class*="px-"] {
@@ -274,15 +320,13 @@ tr {
   input,
   select,
   textarea {
-    font-size: 16px !important; /* evita zoom automático en iPhone */
+    font-size: 16px !important;
   }
 
-  /* Las tarjetas con acciones a la derecha se apilan mejor */
   .flex.justify-between.items-center {
     align-items: flex-start !important;
   }
 
-  /* Las barras fijas ocupan mucho en móvil; mejor comportamiento natural */
   .sticky {
     position: static !important;
   }
@@ -299,7 +343,6 @@ tr {
     line-height: 1.6rem !important;
   }
 
-  /* En móvil los formularios y paneles tienen menos aire para ganar espacio */
   .p-8,
   .p-6,
   .p-5,
@@ -317,17 +360,14 @@ tr {
     border-radius: 0.75rem !important;
   }
 
-  /* Las tablas de planificación mantienen lectura horizontal */
   table {
     min-width: 680px;
   }
 
-  /* Los botones principales se distribuyen en varias líneas sin salirse */
   .flex {
     max-width: 100%;
   }
 
-  /* En listados largos, los botones no aplastan el texto */
   .whitespace-nowrap {
     white-space: normal !important;
   }
@@ -364,6 +404,10 @@ tr {
 @media print {
   body {
     background: white !important;
+  }
+
+  main::before {
+    display: none !important;
   }
 
   .bg-white {
