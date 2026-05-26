@@ -5,12 +5,18 @@ import { collection, doc, getDoc, getDocs, query, where } from "firebase/firesto
 import { getDownloadURL, listAll, ref } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 
+const CATEGORIA_DEFECTO = "Otros";
+
 function normalizeText(value) {
   return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9]/g, "")
     .toLowerCase();
+}
+
+function categoriaImagen(img) {
+  return img?.categoria || img?.categoriaImagen || CATEGORIA_DEFECTO;
 }
 
 function uniqueImages(images) {
@@ -55,7 +61,7 @@ async function buscarImagenesVehiculo({ checklistId, cuestionarioId, matricula, 
       const snapChecklist = await getDocs(qChecklist);
       snapChecklist.forEach((docSnap) => {
         const img = docSnap.data() || {};
-        if (img.url) resultados.push({ ...img, name: img.nombreArchivo || img.rutaStorage || "Imagen" });
+        if (img.url) resultados.push({ ...img, categoria: categoriaImagen(img), name: img.nombreArchivo || img.rutaStorage || "Imagen" });
       });
     }
   } catch (error) {
@@ -71,7 +77,7 @@ async function buscarImagenesVehiculo({ checklistId, cuestionarioId, matricula, 
       const snapCuestionario = await getDocs(qCuestionario);
       snapCuestionario.forEach((docSnap) => {
         const img = docSnap.data() || {};
-        if (img.url) resultados.push({ ...img, name: img.nombreArchivo || img.rutaStorage || "Imagen" });
+        if (img.url) resultados.push({ ...img, categoria: categoriaImagen(img), name: img.nombreArchivo || img.rutaStorage || "Imagen" });
       });
     }
   } catch (error) {
@@ -88,7 +94,7 @@ async function buscarImagenesVehiculo({ checklistId, cuestionarioId, matricula, 
       snapMatricula.forEach((docSnap) => {
         const img = docSnap.data() || {};
         if (normalizeText(img.numeroORNormalizado || img.numeroOR) === orNorm && img.url) {
-          resultados.push({ ...img, name: img.nombreArchivo || img.rutaStorage || "Imagen" });
+          resultados.push({ ...img, categoria: categoriaImagen(img), name: img.nombreArchivo || img.rutaStorage || "Imagen" });
         }
       });
     }
@@ -112,6 +118,7 @@ async function buscarImagenesVehiculo({ checklistId, cuestionarioId, matricula, 
             name: itemRef.name,
             nombreArchivo: itemRef.name,
             rutaStorage: itemRef.fullPath,
+            categoria: CATEGORIA_DEFECTO,
           };
         })
       );
@@ -169,6 +176,12 @@ export default function VehicleImages({
         <div className={compact ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" : "grid grid-cols-1 sm:grid-cols-2 gap-4"}>
           {imagenes.map((img, idx) => (
             <div key={`${img.rutaStorage || img.name || img.url}-${idx}`} className="bg-white rounded-lg shadow p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800 border border-red-200">
+                  {categoriaImagen(img)}
+                </span>
+                <span className="text-[11px] text-gray-400 truncate">{img.nombreArchivo || img.name || "Imagen"}</span>
+              </div>
               <img
                 src={img.url}
                 alt={img.name || img.nombreArchivo || "Imagen del vehículo"}
