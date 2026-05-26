@@ -1,0 +1,89 @@
+/* Ajustes específicos para que el Calendario de Citas no se vea solapado en Semana/Día */
+
+/* En las vistas Semana/Día, react-big-calendar coloca eventos solapados en columnas muy estrechas.
+   Para el taller interesa más leerlos bien que respetar al milímetro la posición por hora, así que los apilamos como tarjetas. */
+.rbc-time-view .rbc-day-slot .rbc-events-container {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 6px !important;
+  margin-right: 4px !important;
+  padding: 6px !important;
+  overflow: visible !important;
+}
+
+.rbc-time-view .rbc-day-slot .rbc-event {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.rbc-time-view .rbc-day-slot .rbc-event-content {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.rbc-time-view .cal-event-inner {
+  min-height: 34px !important;
+  padding: 7px 10px !important;
+  border-radius: 12px !important;
+  font-size: 12px !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16) !important;
+}
+
+.rbc-time-view .cal-event-text {
+  white-space: normal !important;
+  line-height: 1.15rem !important;
+}
+
+.rbc-time-view .rbc-event-label {
+  display: none !important;
+}
+
+.rbc-time-view .rbc-time-content {
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+}
+
+.rbc-time-view .rbc-timeslot-group {
+  min-height: 56px !important;
+}
+
+/* La vista Agenda también queda más limpia y no toda azul */
+.rbc-agenda-view table.rbc-agenda-table tbody > tr,
+.rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.rbc-agenda-view table.rbc-agenda-table tbody > tr:nth-child(even),
+.rbc-agenda-view table.rbc-agenda-table tbody > tr:nth-child(even) > td {
+  background: #f8fafc !important;
+}
+
+.rbc-agenda-view .rbc-agenda-event-cell .cal-event-inner {
+  display: inline-flex !important;
+  width: auto !important;
+  max-width: 100% !important;
+  min-height: 32px !important;
+}
+
+@media (max-width: 768px) {
+  .rbc-time-view {
+    min-width: 760px !important;
+  }
+
+  .rbc-time-view .cal-event-inner {
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+  }
+}
