@@ -40,7 +40,7 @@ export default function DashboardPage() {
   const [userRol, setUserRol] = useState("ADMIN");
   const [onlyMine, setOnlyMine] = useState(true);
   const [pushStatus, setPushStatus] = useState("idle");
-  const [stats, setStats] = useState({ pendientes: 0, finalizados: 0, denegados: 0, agendaHoy: 0, avisos: 0, chatsNuevos: 0, agendaPendiente: 0, agendaProceso: 0 });
+  const [stats, setStats] = useState({ pendientes: 0, finalizados: 0, denegados: 0, agendaHoy: 0, avisos: 0, chatsNuevos: 0, agendaPendiente: 0, agendaProceso: 0, entregasVencidas: 0, sinMecanico: 0, recambiosPendientes: 0, checklistsModificadas: 0 });
   const esAsesor = userRol !== "MECANICO";
 
   const menuPrincipal = [
@@ -134,20 +134,33 @@ export default function DashboardPage() {
     let alive = true;
     (async () => {
       try {
-        const [pend, fin, den, agenda, notif, chats] = await Promise.all([
+        const [pend, fin, den, agenda, notif, chats, recambiosSnap] = await Promise.all([
           getDocs(query(collection(db, "cuestionarios_cliente"), where("estadoPresupuesto", "==", "PENDIENTE_PRESUPUESTO"))),
           getDocs(query(collection(db, "cuestionarios_cliente"), where("estadoPresupuesto", "==", "FINALIZADO"))),
           getDocs(query(collection(db, "cuestionarios_cliente"), where("estadoPresupuesto", "==", "DENEGADO"))),
           getDocs(collection(db, "agenda_mecanicos")),
           getDocs(collection(db, "notificaciones")),
           getDocs(collection(db, "chats_trabajos")),
+          getDocs(collection(db, "recambios")),
         ]);
         const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
         const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
         const agendaHoy = agenda.docs.map((d) => d.data() || {}).filter((t) => {
           const f = toDate(t.fechaInicio); if (!f) return false;
           return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, "0")}-${String(f.getDate()).padStart(2, "0")}` === hoyStr;
         });
+        const pendientesDocs = pend.docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
+        const entregasVencidas = pendientesDocs.filter((x) => {
+          const f = toDate(x?.datos?.fechaSalida);
+          if (!f) return false;
+          f.setHours(0, 0, 0, 0);
+          return f < hoy;
+        }).length;
+        const sinMecanico = pendientesDocs.filter((x) => !x.asignadoMecanicoUid && !x?.datos?.mecanicoUid).length;
+        const recambios = recambiosSnap.docs.map((d) => d.data() || {});
+        const recambiosPendientes = recambios.filter((r) => String(r.estadoRecambios || "SIN_INICIAR") !== "FINALIZADO" && String(r.estadoPresupuesto || "") !== "FINALIZADO" && String(r.estadoPresupuesto || "") !== "DENEGADO").length;
+        const checklistsModificadas = recambios.filter((r) => !!r.checklistEditada && !r.checklistEditadaRevisada).length;
         if (!alive) return;
         setStats({
           pendientes: pend.size,
@@ -158,6 +171,10 @@ export default function DashboardPage() {
           agendaProceso: agendaHoy.filter((t) => t.estado === "en_proceso").length,
           avisos: notif.docs.filter((d) => !d.data()?.leida).length,
           chatsNuevos: chats.docs.filter((d) => d.data()?.lastSenderUid && d.data()?.lastSenderUid !== user.uid).length,
+          entregasVencidas,
+          sinMecanico,
+          recambiosPendientes,
+          checklistsModificadas,
         });
       } catch (e) { console.error("Error cargando panel estadísticas:", e); }
     })();
@@ -209,6 +226,12 @@ export default function DashboardPage() {
   if (!authChecked) return <p className="p-6 text-center">Comprobando sesión…</p>;
 
   const filteredItems = items.filter(({ datos }) => [datos?.matricula, datos?.numeroOR, datos?.nombreCliente, datos?.marcaModelo].filter(Boolean).join(" ").toLowerCase().includes(searchTerm.toLowerCase()));
+  const avisosInteligentes = [
+    { label: "Entregas vencidas", value: stats.entregasVencidas, color: "bg-red-50 text-red-800 border-red-200", url: "/calendario-citas" },
+    { label: "Trabajos sin mecánico", value: stats.sinMecanico, color: "bg-orange-50 text-orange-800 border-orange-200", url: "/dashboard" },
+    { label: "Recambios pendientes", value: stats.recambiosPendientes, color: "bg-blue-50 text-blue-800 border-blue-200", url: "/recambios-form" },
+    { label: "Checklist modificada sin revisar", value: stats.checklistsModificadas, color: "bg-yellow-50 text-yellow-800 border-yellow-200", url: "/recambios-form" },
+  ];
 
   return (
     <main className="p-3 sm:p-6 space-y-6 overflow-x-hidden">
@@ -236,6 +259,17 @@ export default function DashboardPage() {
               <div className="bg-fuchsia-50 border rounded p-3"><p className="text-xs text-gray-500">Chats con actividad</p><b className="text-2xl">{stats.chatsNuevos}</b></div>
               <button onClick={() => router.push("/trabajos-finalizados")} className="bg-green-600 text-white rounded p-3 text-left min-h-[74px]"><p className="text-xs opacity-90">Ir a</p><b>Trabajos finalizados</b></button>
               <button onClick={() => router.push("/chats/informes")} className="bg-fuchsia-600 text-white rounded p-3 text-left min-h-[74px]"><p className="text-xs opacity-90">Ir a</p><b>Informes chats</b></button>
+            </div>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <h3 className="font-bold text-slate-900 mb-3">Avisos inteligentes</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {avisosInteligentes.map((a) => (
+                  <button key={a.label} onClick={() => router.push(a.url)} className={`text-left rounded-lg border p-3 ${a.color}`}>
+                    <p className="text-xs font-semibold opacity-80">{a.label}</p>
+                    <b className="text-2xl">{a.value}</b>
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
         )}
