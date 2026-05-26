@@ -156,130 +156,129 @@ export default function ClienteFormDetail() {
   );
 
   return (
-    <main className="p-6 max-w-screen-xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Detalle Cuestionario</h1>
-        <div className="flex gap-4">
+    <main className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Detalle Cuestionario</h1>
+          <p className="text-sm text-gray-500">La versión imprimible se abre aparte y usa estos mismos datos guardados.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={() => router.push(`/cliente-form/${encodeURIComponent(id)}/imprimible`)}
+            className="px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 font-semibold"
+          >
+            🖨️ Versión imprimible
+          </button>
           {modoEdicion && (
             <button
               onClick={guardarCambios}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold"
             >
               Guardar Cambios
             </button>
           )}
           <button
             onClick={() => router.push("/dashboard")}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 font-semibold"
           >
             Volver
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded shadow space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            {renderInput("Matrícula", "matricula")}
-            {renderInput("Nombre", "nombreCliente")}
-            {renderInput("Teléfono Cliente", "telefonoCliente")}
-            {renderInput("Nº OR", "numeroOR")}
-            {renderInput("Ciclo", "ciclo")}
-            {renderInput("Marca/Modelo", "marcaModelo")}
-            {renderInput("Fecha de Cita", "fechaCita", "date")}
-            {renderInput("Fecha Salida", "fechaSalida", "date")}
+      <div className="bg-white p-4 sm:p-6 rounded shadow space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {renderInput("Matrícula", "matricula")}
+          {renderInput("Nombre", "nombreCliente")}
+          {renderInput("Teléfono Cliente", "telefonoCliente")}
+          {renderInput("Nº OR", "numeroOR")}
+          {renderInput("Ciclo", "ciclo")}
+          {renderInput("Marca/Modelo", "marcaModelo")}
+          {renderInput("Fecha de Cita", "fechaCita", "date")}
+          {renderInput("Fecha Salida", "fechaSalida", "date")}
 
-            {/* Asesor justo después de las fechas */}
-            {renderInput("Asesor", "asesor")}
+          {/* Asesor justo después de las fechas */}
+          {renderInput("Asesor", "asesor")}
 
-            {/* Mecánico (opcional) */}
-            <div>
-              <p className="text-xs font-bold text-gray-600 mb-1">
-                Mecánico (opcional)
+          {/* Mecánico (opcional) */}
+          <div>
+            <p className="text-xs font-bold text-gray-600 mb-1">
+              Mecánico (opcional)
+            </p>
+            <select
+              className="border border-gray-300 px-2 py-1 rounded w-full"
+              value={datosEditados.mecanicoUid || ""}
+              onChange={(e) => handleCampoChange("mecanicoUid", e.target.value)}
+              disabled={!modoEdicion}
+            >
+              <option value="">Sin asignar</option>
+              {mecanicos.map((m) => (
+                <option key={m.uid} value={m.uid}>
+                  {m.nombre}
+                </option>
+              ))}
+            </select>
+            {!!datosEditados.mecanicoUid && (
+              <p className="mt-1 text-[11px] text-gray-500">
+                Asignado a: <b>{mecanicos.find((m) => m.uid === datosEditados.mecanicoUid)?.nombre || datosEditados.mecanicoNombre || ""}</b>
               </p>
-              <select
-                className="border border-gray-300 px-2 py-1 rounded w-full"
-                value={datosEditados.mecanicoUid || ""}
-                onChange={(e) => handleCampoChange("mecanicoUid", e.target.value)}
-                disabled={!modoEdicion}
-              >
-                <option value="">Sin asignar</option>
-                {mecanicos.map((m) => (
-                  <option key={m.uid} value={m.uid}>
-                    {m.nombre}
-                  </option>
-                ))}
-              </select>
-              {!!datosEditados.mecanicoUid && (
-                <p className="mt-1 text-[11px] text-gray-500">
-                  Asignado a: <b>{mecanicos.find((m) => m.uid === datosEditados.mecanicoUid)?.nombre || datosEditados.mecanicoNombre || ""}</b>
-                </p>
-              )}
-            </div>
+            )}
           </div>
-
-          <VehicleImages
-            cuestionarioId={id}
-            matricula={datosEditados.matricula || cuestionario.matricula}
-            numeroOR={datosEditados.numeroOR || cuestionario.numeroOR}
-            compact
-          />
-
-          <section className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4 space-y-4">
-            <div>
-              <h2 className="text-lg font-bold text-blue-900">Recepción activa del vehículo</h2>
-              <p className="text-xs text-blue-700">Datos registrados en la entrada del vehículo al taller.</p>
-            </div>
-
-            {renderInput("Kilometraje", "recepcionKilometraje")}
-            {renderRadioGroup("Nivel de combustible", "recepcionNivelCombustible", ["R", "1/4", "1/2", "3/4", "1"])}
-            {renderRadioGroup("Estado del aire acondicionado (Enfría)", "recepcionAireAcondicionado", ["Sí", "No"])}
-
-            <div className="space-y-2">
-              {renderRadioGroup("Estado de las alfombrillas", "recepcionAlfombrillasEstado", ["Correcto", "Verificar", "Cambiar"])}
-              {renderInput("Observaciones alfombrillas", "recepcionAlfombrillasObservaciones")}
-            </div>
-
-            {renderRadioGroup("Neumático delantero derecho", "recepcionNeumaticoDelanteroDerecho", ["Bueno (>3 mm)", "Medio (1.6 mm - 3 mm)", "Reemplazar (<1.6 mm)"])}
-            {renderRadioGroup("Neumático delantero izquierdo", "recepcionNeumaticoDelanteroIzquierdo", ["Bueno (>3 mm)", "Medio (1.6 mm - 3 mm)", "Reemplazar (<1.6 mm)"])}
-            {renderRadioGroup("Neumático trasero derecho", "recepcionNeumaticoTraseroDerecho", ["Bueno (>3 mm)", "Medio (1.6 mm - 3 mm)", "Reemplazar (<1.6 mm)"])}
-            {renderRadioGroup("Neumático trasero izquierdo", "recepcionNeumaticoTraseroIzquierdo", ["Bueno (>3 mm)", "Medio (1.6 mm - 3 mm)", "Reemplazar (<1.6 mm)"])}
-            {renderRadioGroup("Estado general de limpiabrisas", "recepcionLimpiabrisasEstado", ["Correcto", "Verificar", "Cambiar"])}
-          </section>
-
-          {renderInput("Descripción del síntoma", "descripcion")}
-
-          <div className="grid grid-cols-2 gap-4">
-            {renderInput("Testigos", "testigos")}
-            {renderInput("Mensajes", "mensajes")}
-          </div>
-
-          {renderCheckboxGroup("Tipo", "tipo", ["Ruido", "Vibración"], "tipoOtro")}
-          {renderCheckboxGroup("Categoría", "categoria", ["Motor", "Chasis", "Electrónica", "Dirección", "Frenos", "SistemaHibrido"])}
-          {renderInput("Comentarios", "comentarios")}
-          {renderInput("¿En qué parte del coche ocurre?", "parteCoche")}
-          {renderCheckboxGroup("¿Desde cuándo?", "desde", ["1 día o menos", "> 1 semana"], "desdeOtro")}
-          {renderCheckboxGroup("¿Con qué frecuencia?", "frecuencia", ["1 vez al día", "Ocasionalmente", "Siempre"], "frecuenciaOtro")}
-          {renderCheckboxGroup("¿Dónde ocurre?", "donde", ["Nacional", "Autopista", "Ciudad", "Adoquines", "Tierra", "Baches"], "dondeOtro")}
-          {renderCheckboxGroup("Condiciones exteriores", "condiciones", ["Mojado", "Seco", "Viento", "VehiculoFrio", "VehiculoCaliente"], "condicionesOtro")}
-          {renderCheckboxGroup("¿Cómo ocurre?", "como", ["Aparcando", "Acelerando", "Ralenti", "CambioMarcha", "Reteniendo", "EnRecta", "Remolque", "MuyCargado", "Seco", "CurvasIzq", "CurvasDer"])}
-
-          <div className="grid grid-cols-3 gap-4">
-            {renderInput("Posición cambio", "posicionCambio")}
-            {renderInput("Velocidad (Km/h)", "velocidad")}
-            {renderInput("Revoluciones (rpm)", "revoluciones")}
-          </div>
-
-          {renderInput("Otro", "otroLibre")}
         </div>
 
-        <div className="bg-white p-2 rounded shadow overflow-hidden">
-          <iframe
-            src="/cuestionario_cliente_formulario.pdf#toolbar=1&zoom=page-width"
-            title="PDF Cuestionario"
-            className="w-full h-[calc(110vh-100px)]"
-          />
+        <VehicleImages
+          cuestionarioId={id}
+          matricula={datosEditados.matricula || cuestionario.matricula}
+          numeroOR={datosEditados.numeroOR || cuestionario.numeroOR}
+          compact
+        />
+
+        <section className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4 space-y-4">
+          <div>
+            <h2 className="text-lg font-bold text-blue-900">Recepción activa del vehículo</h2>
+            <p className="text-xs text-blue-700">Datos registrados en la entrada del vehículo al taller.</p>
+          </div>
+
+          {renderInput("Kilometraje", "recepcionKilometraje")}
+          {renderRadioGroup("Nivel de combustible", "recepcionNivelCombustible", ["R", "1/4", "1/2", "3/4", "1"])}
+          {renderRadioGroup("Estado del aire acondicionado (Enfría)", "recepcionAireAcondicionado", ["Sí", "No"])}
+
+          <div className="space-y-2">
+            {renderRadioGroup("Estado de las alfombrillas", "recepcionAlfombrillasEstado", ["Correcto", "Verificar", "Cambiar"])}
+            {renderInput("Observaciones alfombrillas", "recepcionAlfombrillasObservaciones")}
+          </div>
+
+          {renderRadioGroup("Neumático delantero derecho", "recepcionNeumaticoDelanteroDerecho", ["Bueno (>3 mm)", "Medio (1.6 mm - 3 mm)", "Reemplazar (<1.6 mm)"])}
+          {renderRadioGroup("Neumático delantero izquierdo", "recepcionNeumaticoDelanteroIzquierdo", ["Bueno (>3 mm)", "Medio (1.6 mm - 3 mm)", "Reemplazar (<1.6 mm)"])}
+          {renderRadioGroup("Neumático trasero derecho", "recepcionNeumaticoTraseroDerecho", ["Bueno (>3 mm)", "Medio (1.6 mm - 3 mm)", "Reemplazar (<1.6 mm)"])}
+          {renderRadioGroup("Neumático trasero izquierdo", "recepcionNeumaticoTraseroIzquierdo", ["Bueno (>3 mm)", "Medio (1.6 mm - 3 mm)", "Reemplazar (<1.6 mm)"])}
+          {renderRadioGroup("Estado general de limpiabrisas", "recepcionLimpiabrisasEstado", ["Correcto", "Verificar", "Cambiar"])}
+        </section>
+
+        {renderInput("Descripción del síntoma", "descripcion")}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {renderInput("Testigos", "testigos")}
+          {renderInput("Mensajes", "mensajes")}
         </div>
+
+        {renderCheckboxGroup("Tipo", "tipo", ["Ruido", "Vibración"], "tipoOtro")}
+        {renderCheckboxGroup("Categoría", "categoria", ["Motor", "Chasis", "Electrónica", "Dirección", "Frenos", "SistemaHibrido"])}
+        {renderInput("Comentarios", "comentarios")}
+        {renderInput("¿En qué parte del coche ocurre?", "parteCoche")}
+        {renderCheckboxGroup("¿Desde cuándo?", "desde", ["1 día o menos", "> 1 semana"], "desdeOtro")}
+        {renderCheckboxGroup("¿Con qué frecuencia?", "frecuencia", ["1 vez al día", "Ocasionalmente", "Siempre"], "frecuenciaOtro")}
+        {renderCheckboxGroup("¿Dónde ocurre?", "donde", ["Nacional", "Autopista", "Ciudad", "Adoquines", "Tierra", "Baches"], "dondeOtro")}
+        {renderCheckboxGroup("Condiciones exteriores", "condiciones", ["Mojado", "Seco", "Viento", "VehiculoFrio", "VehiculoCaliente"], "condicionesOtro")}
+        {renderCheckboxGroup("¿Cómo ocurre?", "como", ["Aparcando", "Acelerando", "Ralenti", "CambioMarcha", "Reteniendo", "EnRecta", "Remolque", "MuyCargado", "Seco", "CurvasIzq", "CurvasDer"])}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {renderInput("Posición cambio", "posicionCambio")}
+          {renderInput("Velocidad (Km/h)", "velocidad")}
+          {renderInput("Revoluciones (rpm)", "revoluciones")}
+        </div>
+
+        {renderInput("Otro", "otroLibre")}
       </div>
     </main>
   );
