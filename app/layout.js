@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./calendar-overrides.css";
 import RegisterServiceWorker from "@/components/RegisterServiceWorker";
 import ForegroundFCMListener from "@/components/ForegroundFCMListener";
 import AppBrandStrip from "@/components/AppBrandStrip";
