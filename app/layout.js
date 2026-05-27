@@ -3,6 +3,7 @@ import "./calendar-overrides.css";
 import RegisterServiceWorker from "@/components/RegisterServiceWorker";
 import ForegroundFCMListener from "@/components/ForegroundFCMListener";
 import AppBrandStrip from "@/components/AppBrandStrip";
+import ChecklistPrintButtonInjector from "@/components/ChecklistPrintButtonInjector";
 
 export const metadata = {
   title: "Mejora Taller",
@@ -16,6 +17,7 @@ export default function RootLayout({ children }) {
         <RegisterServiceWorker />
         <ForegroundFCMListener />
         <AppBrandStrip />
+        <ChecklistPrintButtonInjector />
         {children}
       </body>
     </html>
