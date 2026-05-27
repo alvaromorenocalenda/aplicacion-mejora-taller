@@ -11,11 +11,11 @@ export default function AppBrandStrip() {
   return (
     <div className="no-print sticky top-0 z-40 border-b border-white/70 bg-white/90 backdrop-blur-xl shadow-sm">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-2 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <img src={LOGO_TALLERES_CALENDA} alt="Talleres Calenda" className="h-12 w-auto rounded-lg bg-white object-contain shadow-sm" />
-          <div className="min-w-0 leading-tight">
-            <p className="truncate text-sm font-black text-slate-900">Talleres Calenda</p>
-            <p className="truncate text-xs text-slate-500">Gestión interna de taller</p>
+        <div className="flex w-full flex-shrink-0 items-center gap-3 sm:w-auto sm:min-w-[280px]">
+          <img src={LOGO_TALLERES_CALENDA} alt="Talleres Calenda" className="h-14 w-auto flex-shrink-0 rounded-lg bg-white object-contain shadow-sm" />
+          <div className="leading-tight">
+            <p className="whitespace-nowrap text-base font-black text-slate-950 sm:text-lg">Talleres Calenda</p>
+            <p className="whitespace-nowrap text-sm font-medium text-slate-600">Gestión interna de taller</p>
           </div>
         </div>
 
