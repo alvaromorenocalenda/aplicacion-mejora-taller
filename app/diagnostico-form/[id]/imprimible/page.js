@@ -21,22 +21,41 @@ export default function ChecklistImprimiblePage() {
     }
 
     async function cargar() {
+      let datosFormularioActual = {};
+      try {
+        const raw = sessionStorage.getItem(`checklist_print_${id}`);
+        if (raw) datosFormularioActual = JSON.parse(raw) || {};
+      } catch (e) {
+        datosFormularioActual = {};
+      }
+
       const snapChecklist = await getDoc(doc(db, "checklists", id));
-      if (!snapChecklist.exists()) {
+      let checklistDoc = {};
+      let datosChecklist = {};
+      let datosCuestionario = {};
+
+      if (snapChecklist.exists()) {
+        checklistDoc = snapChecklist.data() || {};
+        datosChecklist = checklistDoc.datos || {};
+      }
+
+      const cuestionarioId = checklistDoc.cuestionarioId || id;
+      if (cuestionarioId) {
+        const snapCuest = await getDoc(doc(db, "cuestionarios_cliente", cuestionarioId));
+        if (snapCuest.exists()) datosCuestionario = (snapCuest.data() || {}).datos || {};
+      }
+
+      const datosCombinados = {
+        ...datosCuestionario,
+        ...datosChecklist,
+        ...datosFormularioActual,
+      };
+
+      if (!Object.keys(datosCombinados).length) {
         router.replace("/diagnostico-form");
         return;
       }
 
-      const checklistDoc = snapChecklist.data() || {};
-      const datosChecklist = checklistDoc.datos || {};
-      let datosCuestionario = {};
-
-      if (checklistDoc.cuestionarioId) {
-        const snapCuest = await getDoc(doc(db, "cuestionarios_cliente", checklistDoc.cuestionarioId));
-        if (snapCuest.exists()) datosCuestionario = (snapCuest.data() || {}).datos || {};
-      }
-
-      const datosCombinados = { ...datosCuestionario, ...datosChecklist };
       setDatos(datosCombinados);
       try {
         document.title = `Checklist imprimible - ${datosCombinados.matricula || ""} - ${datosCombinados.numeroOR || ""}`.trim();
@@ -53,7 +72,7 @@ export default function ChecklistImprimiblePage() {
   return (
     <ChecklistImprimible
       datos={datos}
-      onBack={() => router.push(`/diagnostico-form/${encodeURIComponent(id)}/detalle`)}
+      onBack={() => router.push(`/diagnostico-form/${encodeURIComponent(id)}`)}
     />
   );
 }
