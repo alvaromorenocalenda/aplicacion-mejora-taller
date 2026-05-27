@@ -19,7 +19,8 @@ const fechaTexto = (v) => {
   const d = toDate(v);
   return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("es-ES") : "Sin fecha";
 };
-const fechaFiltro = (item) => toDate(item.fechaDenegado || item.denegadoEn || item.actualizadoEn || item.creadoEn || item.createdAt);
+const fechaFiltro = (item) => toDate(item.fechaDenegado || item.denegadoEn || item.actualizadoEn || item.creadoEn || item.createdAt || item.updatedAt);
+const datosObjeto = (d) => d && typeof d === "object" && !Array.isArray(d) ? d : {};
 const enMes = (item, mes) => {
   if (!mes) return true;
   const d = fechaFiltro(item);
@@ -33,9 +34,11 @@ export default function PresupuestosDenegadosPage() {
   const [cuestionarios, setCuestionarios] = useState([]);
   const [checklists, setChecklists] = useState([]);
   const [recambios, setRecambios] = useState([]);
+  const [chats, setChats] = useState([]);
   const [searchCq, setSearchCq] = useState("");
   const [searchCh, setSearchCh] = useState("");
   const [searchR, setSearchR] = useState("");
+  const [searchChat, setSearchChat] = useState("");
   const [mes, setMes] = useState(mesActual());
   const [userRol, setUserRol] = useState("ADMIN");
   const [onlyMine, setOnlyMine] = useState(true);
@@ -49,9 +52,40 @@ export default function PresupuestosDenegadosPage() {
 
   const matchTrabajo = (item, term) => {
     const t = (term || "").toLowerCase();
-    return (item?.datos?.matricula || "").toLowerCase().includes(t) || (item?.datos?.numeroOR || "").toLowerCase().includes(t) || (item?.datos?.nombreCliente || "").toLowerCase().includes(t);
+    const d = datosObjeto(item?.datos);
+    return (d?.matricula || "").toLowerCase().includes(t) || (d?.numeroOR || "").toLowerCase().includes(t) || (d?.nombreCliente || d?.nombre || "").toLowerCase().includes(t);
   };
-  const trabajoLabel = (item) => `${item?.datos?.matricula || ""} — ${item?.datos?.numeroOR || ""} — ${item?.datos?.nombreCliente || ""}`;
+  const trabajoLabel = (item) => {
+    const d = datosObjeto(item?.datos);
+    return `${d?.matricula || "Sin matrícula"} — ${d?.numeroOR || "Sin OR"} — ${d?.nombreCliente || d?.nombre || "Sin cliente"}`;
+  };
+
+  function completarDatosRelacionados(cq, ch, r, chatList) {
+    const cuestionariosMap = new Map(cq.map((x) => [x.id, x]));
+    const checklistsMap = new Map(ch.map((x) => [x.id, x]));
+
+    const checklistsCompletas = ch.map((x) => {
+      const cuestionarioId = x.cuestionarioId || x.id;
+      const cuestionario = cuestionariosMap.get(cuestionarioId) || {};
+      return { ...x, cuestionarioId, datos: { ...datosObjeto(cuestionario.datos), ...datosObjeto(x.datos) } };
+    });
+
+    const recambiosCompletos = r.map((x) => {
+      const checklistId = x.checklistId || x.id;
+      const checklist = checklistsMap.get(checklistId) || {};
+      const cuestionarioId = x.cuestionarioId || checklist.cuestionarioId || checklistId || x.id;
+      const cuestionario = cuestionariosMap.get(cuestionarioId) || cuestionariosMap.get(x.id) || {};
+      return { ...x, checklistId, cuestionarioId, datos: { ...datosObjeto(cuestionario.datos), ...datosObjeto(checklist.datos), ...datosObjeto(x.datos) } };
+    });
+
+    const chatsCompletos = chatList.map((x) => {
+      const cuestionarioId = x.cuestionarioId || x.trabajoId || x.id;
+      const cuestionario = cuestionariosMap.get(cuestionarioId) || {};
+      return { ...x, cuestionarioId, datos: { ...datosObjeto(cuestionario.datos), ...datosObjeto(x.datos) } };
+    });
+
+    return { checklistsCompletas, recambiosCompletos, chatsCompletos };
+  }
 
   useEffect(() => {
     if (!auth.currentUser) { router.replace("/login"); return; }
@@ -64,23 +98,31 @@ export default function PresupuestosDenegadosPage() {
     });
     (async () => {
       setLoading(true);
-      const [cqSnap, chSnap, rSnap] = await Promise.all([
+      const [cqSnap, chSnap, rSnap, chatSnap] = await Promise.all([
         getDocs(query(collection(db, "cuestionarios_cliente"), where("estadoPresupuesto", "==", "DENEGADO"))),
         getDocs(query(collection(db, "checklists"), where("estadoPresupuesto", "==", "DENEGADO"))),
         getDocs(query(collection(db, "recambios"), where("estadoPresupuesto", "==", "DENEGADO"))),
+        getDocs(collection(db, "chats_trabajos"))
       ]);
       const cq = cqSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const ch = chSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const r = rSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const chatList = chatSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const { checklistsCompletas, recambiosCompletos, chatsCompletos } = completarDatosRelacionados(cq, ch, r, chatList);
+      const idsDenegados = new Set([...cq.map((x) => x.id), ...checklistsCompletas.map((x) => x.cuestionarioId || x.id), ...recambiosCompletos.map((x) => x.cuestionarioId || x.id)]);
+      const chatsAsociados = chatsCompletos.filter((x) => idsDenegados.has(x.cuestionarioId || x.id));
+
       if (userRol === "MECANICO" && onlyMine) {
         const allowed = new Set(cq.filter(x => x.asignadoMecanicoUid === u.uid).map(x => x.id));
         setCuestionarios(cq.filter(x => allowed.has(x.id)));
-        setChecklists(ch.filter(x => allowed.has(x.id)));
-        setRecambios(r.filter(x => allowed.has(x.id)));
+        setChecklists(checklistsCompletas.filter(x => allowed.has(x.cuestionarioId || x.id)));
+        setRecambios(recambiosCompletos.filter(x => allowed.has(x.cuestionarioId || x.id)));
+        setChats(chatsAsociados.filter(x => allowed.has(x.cuestionarioId || x.id)));
       } else {
         setCuestionarios(cq);
-        setChecklists(ch);
-        setRecambios(r);
+        setChecklists(checklistsCompletas);
+        setRecambios(recambiosCompletos);
+        setChats(chatsAsociados);
       }
       setLoading(false);
     })();
@@ -93,7 +135,7 @@ export default function PresupuestosDenegadosPage() {
     await deleteChatTrabajo(db, itemId);
     if (confirm("¿Deseas borrar el cuestionario cliente asociado?")) { await deleteDoc(doc(db, "cuestionarios_cliente", itemId)); setCuestionarios(prev => prev.filter(c => c.id !== itemId)); }
     if (confirm("¿Deseas borrar la checklist asociada?")) { await deleteDoc(doc(db, "checklists", itemId)); setChecklists(prev => prev.filter(c => c.id !== itemId)); }
-    if (confirm("¿Deseas borrar los recambios asociados?")) { await deleteDoc(doc(db, "recambios", itemId)); setRecambios(prev => prev.filter(c => c.id !== itemId)); }
+    if (confirm("¿Deseas borrar también los recambios asociados?")) { await deleteDoc(doc(db, "recambios", itemId)); setRecambios(prev => prev.filter(c => c.id !== itemId)); }
   };
 
   async function handleReopenPresupuesto(checklistId) {
@@ -106,6 +148,7 @@ export default function PresupuestosDenegadosPage() {
       setCuestionarios((prev) => prev.filter((c) => c.id !== checklistId));
       setChecklists((prev) => prev.filter((c) => c.id !== checklistId));
       setRecambios((prev) => prev.filter((c) => c.id !== checklistId));
+      setChats((prev) => prev.filter((c) => (c.cuestionarioId || c.id) !== checklistId));
       alert("Presupuesto reabierto correctamente.");
     } catch (err) {
       console.error(err);
@@ -116,19 +159,29 @@ export default function PresupuestosDenegadosPage() {
   const cqFiltrados = useMemo(() => cuestionarios.filter(c => enMes(c, mes) && matchTrabajo(c, searchCq)), [cuestionarios, mes, searchCq]);
   const chFiltrados = useMemo(() => checklists.filter(c => enMes(c, mes) && matchTrabajo(c, searchCh)), [checklists, mes, searchCh]);
   const rFiltrados = useMemo(() => recambios.filter(c => enMes(c, mes) && matchTrabajo(c, searchR)), [recambios, mes, searchR]);
+  const chatsFiltrados = useMemo(() => chats.filter(c => enMes(c, mes) && (matchTrabajo(c, searchChat) || String(c.lastMessage || c.lastText || "").toLowerCase().includes(searchChat.toLowerCase()))), [chats, mes, searchChat]);
 
   if (loading) return <p className="p-6 text-center">Cargando…</p>;
 
   const renderItem = (c, tipo) => {
+    const cuestionarioId = c.cuestionarioId || c.id;
     const rutaVer = tipo === "cliente" ? `/cliente-form/${encodeURIComponent(c.id)}?view=true` : tipo === "checklist" ? `/diagnostico-form/${encodeURIComponent(c.id)}/detalle` : `/recambios-form/${encodeURIComponent(c.id)}/detalle`;
-    return <div key={c.id} className="flex justify-between items-center bg-red-100 p-4 mb-2 rounded gap-3">
+    return <div key={`${tipo}-${c.id}`} className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-red-100 p-4 mb-2 rounded gap-3">
       <div><p className="font-medium">{trabajoLabel(c)}</p><p className="text-xs text-gray-600">Denegado/fecha: {fechaTexto(fechaFiltro(c))}</p></div>
-      <div className="space-x-2 whitespace-nowrap">
-        <button onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(c.id)}`)} className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700">Chat</button>
+      <div className="grid grid-cols-4 gap-2 sm:flex sm:space-x-2 sm:whitespace-nowrap">
+        <button onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(cuestionarioId)}`)} className="px-3 py-1 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700">Chat</button>
         <button onClick={() => router.push(rutaVer)} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Ver</button>
-        <button onClick={() => handleReopenPresupuesto(c.id)} className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Reabrir</button>
-        <button onClick={() => confirmAndDeleteAll(c.id)} className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">Eliminar</button>
+        <button onClick={() => handleReopenPresupuesto(cuestionarioId)} className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Reabrir</button>
+        <button onClick={() => confirmAndDeleteAll(cuestionarioId)} className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">Eliminar</button>
       </div>
+    </div>;
+  };
+
+  const renderChat = (c) => {
+    const cuestionarioId = c.cuestionarioId || c.id;
+    return <div key={`chat-${c.id}`} className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-fuchsia-50 border border-fuchsia-200 p-4 mb-2 rounded gap-3">
+      <div><p className="font-medium">{trabajoLabel(c)}</p><p className="text-xs text-gray-600">Última actividad: {fechaTexto(c.updatedAt || c.createdAt)}</p><p className="text-sm text-gray-700 truncate max-w-xl">{c.lastMessage || c.lastText || "Chat asociado al trabajo"}</p></div>
+      <button onClick={() => router.push(`/chat-trabajo/${encodeURIComponent(cuestionarioId)}`)} className="px-3 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700">Abrir chat</button>
     </div>;
   };
 
@@ -142,6 +195,7 @@ export default function PresupuestosDenegadosPage() {
       <button onClick={() => irASeccion("cuestionarios-denegados")} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Ir a cuestionarios cliente</button>
       <button onClick={() => irASeccion("checklists-denegadas")} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Ir a checklist denegadas</button>
       <button onClick={() => irASeccion("recambios-denegados")} className="px-4 py-2 bg-blue-800 text-white rounded hover:bg-blue-900">Ir a recambios denegados</button>
+      <button onClick={() => irASeccion("chats-denegados")} className="px-4 py-2 bg-fuchsia-600 text-white rounded hover:bg-fuchsia-700">Ir a chats asociados</button>
       <label className="ml-auto text-sm font-semibold">Filtro por mes<input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="block border rounded px-3 py-2 mt-1" /></label>
       <button onClick={() => setMes(mesActual())} className="px-4 py-2 bg-green-600 text-white rounded">Mes actual</button>
       <button onClick={() => setMes("")} className="px-4 py-2 bg-gray-600 text-white rounded">Ver todos</button>
@@ -149,22 +203,9 @@ export default function PresupuestosDenegadosPage() {
 
     {userRol === "MECANICO" && <div className="flex items-center gap-2 text-sm text-gray-700"><input id="onlyMineDeny" type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /><label htmlFor="onlyMineDeny">Ver sólo mis trabajos asignados</label></div>}
 
-    <section id="cuestionarios-denegados" className="scroll-mt-28">
-      <h2 className="text-2xl font-semibold mb-4">Cuestionarios Cliente ({cqFiltrados.length})</h2>
-      <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchCq} onChange={e => setSearchCq(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" />
-      {cqFiltrados.length === 0 ? <p className="text-gray-600">No hay cuestionarios denegados en este periodo.</p> : cqFiltrados.map(c => renderItem(c, "cliente"))}
-    </section>
-
-    <section id="checklists-denegadas" className="scroll-mt-28">
-      <h2 className="text-2xl font-semibold mb-4">Checklists ({chFiltrados.length})</h2>
-      <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchCh} onChange={e => setSearchCh(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" />
-      {chFiltrados.length === 0 ? <p className="text-gray-600">No hay checklists denegadas en este periodo.</p> : chFiltrados.map(c => renderItem(c, "checklist"))}
-    </section>
-
-    <section id="recambios-denegados" className="scroll-mt-28">
-      <h2 className="text-2xl font-semibold mb-4">Recambios ({rFiltrados.length})</h2>
-      <input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchR} onChange={e => setSearchR(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" />
-      {rFiltrados.length === 0 ? <p className="text-gray-600">No hay recambios denegados en este periodo.</p> : rFiltrados.map(c => renderItem(c, "recambios"))}
-    </section>
+    <section id="cuestionarios-denegados" className="scroll-mt-28"><h2 className="text-2xl font-semibold mb-4">Cuestionarios Cliente ({cqFiltrados.length})</h2><input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchCq} onChange={e => setSearchCq(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" />{cqFiltrados.length === 0 ? <p className="text-gray-600">No hay cuestionarios denegados en este periodo.</p> : cqFiltrados.map(c => renderItem(c, "cliente"))}</section>
+    <section id="checklists-denegadas" className="scroll-mt-28"><h2 className="text-2xl font-semibold mb-4">Checklists ({chFiltrados.length})</h2><input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchCh} onChange={e => setSearchCh(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" />{chFiltrados.length === 0 ? <p className="text-gray-600">No hay checklists denegadas en este periodo.</p> : chFiltrados.map(c => renderItem(c, "checklist"))}</section>
+    <section id="recambios-denegados" className="scroll-mt-28"><h2 className="text-2xl font-semibold mb-4">Recambios ({rFiltrados.length})</h2><input type="text" placeholder="🔍 Buscar matrícula, número de orden o nombre..." value={searchR} onChange={e => setSearchR(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-300" />{rFiltrados.length === 0 ? <p className="text-gray-600">No hay recambios denegados en este periodo.</p> : rFiltrados.map(c => renderItem(c, "recambios"))}</section>
+    <section id="chats-denegados" className="scroll-mt-28"><h2 className="text-2xl font-semibold mb-4">Chats asociados ({chatsFiltrados.length})</h2><input type="text" placeholder="🔍 Buscar matrícula, número de orden, nombre o texto del chat..." value={searchChat} onChange={e => setSearchChat(e.target.value)} className="w-full mb-4 pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-2 border-fuchsia-500 focus:outline-none focus:ring-2 focus:ring-fuchsia-300" />{chatsFiltrados.length === 0 ? <p className="text-gray-600">No hay chats asociados en este periodo.</p> : chatsFiltrados.map(renderChat)}</section>
   </main>;
 }
