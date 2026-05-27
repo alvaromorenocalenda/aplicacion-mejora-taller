@@ -9,9 +9,11 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
+  where,
 } from "firebase/firestore";
 
 import { subscribeUserProfile } from "../../lib/userProfile";
@@ -22,6 +24,7 @@ export default function ChatsPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
+  const [viewChoice, setViewChoice] = useState(null);
 
   const [userRol, setUserRol] = useState("ADMIN");
   const [onlyMine, setOnlyMine] = useState(false);
@@ -63,6 +66,18 @@ export default function ChatsPage() {
         const enriched = await Promise.all(
           base.map(async (c) => {
             const cuestionarioId = String(c.cuestionarioId || c.id);
+            let checklistId = c.checklistId || "";
+
+            try {
+              // Buscamos la checklist asociada para poder abrir Diagnóstico y Recambios desde el botón "Ver trabajo".
+              const chkSnap = await getDocs(
+                query(collection(db, "checklists"), where("cuestionarioId", "==", cuestionarioId))
+              );
+              checklistId = chkSnap.docs?.[0]?.id || checklistId;
+            } catch {
+              // ignorar: si no se encuentra, se usará el id del cuestionario como respaldo
+            }
+
             try {
               const cq = await getDoc(
                 doc(db, "cuestionarios_cliente", cuestionarioId)
@@ -72,6 +87,7 @@ export default function ChatsPage() {
                 return {
                   ...c,
                   cuestionarioId,
+                  checklistId,
                   matricula: datos.matricula || "",
                   numeroOR: datos.numeroOR || "",
                   nombreCliente: datos.nombreCliente || "",
@@ -86,6 +102,7 @@ export default function ChatsPage() {
             return {
               ...c,
               cuestionarioId,
+              checklistId,
               matricula: c.matricula || "",
               numeroOR: c.numeroOR || "",
               nombreCliente: c.nombreCliente || "",
@@ -167,6 +184,28 @@ export default function ChatsPage() {
       .toLowerCase();
     return hay.includes(search.toLowerCase());
   });
+
+  const openTrabajoOption = (tipo) => {
+    if (!viewChoice) return;
+    const cuestionarioId = String(viewChoice.cuestionarioId || viewChoice.id);
+    const checklistId = String(viewChoice.checklistId || cuestionarioId);
+
+    setViewChoice(null);
+
+    if (tipo === "cuestionario") {
+      router.push(`/cliente-form/${encodeURIComponent(cuestionarioId)}?view=true`);
+      return;
+    }
+
+    if (tipo === "checklist") {
+      router.push(`/diagnostico-form/${encodeURIComponent(checklistId)}/detalle`);
+      return;
+    }
+
+    if (tipo === "recambios") {
+      router.push(`/recambios-form/${encodeURIComponent(checklistId)}/detalle`);
+    }
+  };
 
   return (
     <main className="max-w-5xl mx-auto p-6 space-y-6">
@@ -283,7 +322,7 @@ export default function ChatsPage() {
                     Abrir chat
                   </button>
                   <button
-                    onClick={() => router.push(`/cliente-form/${encodeURIComponent(id)}?view=true`)}
+                    onClick={() => setViewChoice(c)}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
                     Ver trabajo
@@ -294,6 +333,44 @@ export default function ChatsPage() {
           })}
         </section>
       )}
+
+      {viewChoice ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl border border-slate-200">
+            <h2 className="text-xl font-bold text-slate-900">¿Qué quieres ver?</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {viewChoice.matricula || "Sin matrícula"} — {viewChoice.numeroOR || "Sin OR"}
+            </p>
+
+            <div className="mt-5 grid gap-3">
+              <button
+                onClick={() => openTrabajoOption("cuestionario")}
+                className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-semibold text-white hover:bg-indigo-700"
+              >
+                Ver cuestionario
+              </button>
+              <button
+                onClick={() => openTrabajoOption("checklist")}
+                className="w-full rounded-lg bg-yellow-500 px-4 py-3 font-semibold text-white hover:bg-yellow-600"
+              >
+                Ver checklist
+              </button>
+              <button
+                onClick={() => openTrabajoOption("recambios")}
+                className="w-full rounded-lg bg-teal-600 px-4 py-3 font-semibold text-white hover:bg-teal-700"
+              >
+                Ver recambios
+              </button>
+              <button
+                onClick={() => setViewChoice(null)}
+                className="w-full rounded-lg bg-gray-200 px-4 py-3 font-semibold text-gray-800 hover:bg-gray-300"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
