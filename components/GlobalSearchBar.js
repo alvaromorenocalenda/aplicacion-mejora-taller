@@ -7,6 +7,21 @@ import { db } from "@/lib/firebase";
 
 const norm = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 const datosObjeto = (d) => d && typeof d === "object" && !Array.isArray(d) ? d : {};
+const estadoLegible = (estado) => {
+  const e = String(estado || "").toUpperCase();
+  if (e === "PENDIENTE_PRESUPUESTO") return "Pendiente";
+  if (e === "FINALIZADO") return "Finalizado";
+  if (e === "DENEGADO") return "Denegado";
+  if (e === "EN_PROCESO") return "En proceso";
+  return String(estado || "").replaceAll("_", " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+};
+const estadoColor = (estado) => {
+  const e = String(estado || "").toUpperCase();
+  if (e === "FINALIZADO") return "bg-green-100 text-green-800";
+  if (e === "DENEGADO") return "bg-red-100 text-red-800";
+  if (e === "PENDIENTE_PRESUPUESTO") return "bg-yellow-100 text-yellow-800";
+  return "bg-slate-200 text-slate-700";
+};
 const toMillis = (v) => {
   if (!v) return 0;
   if (typeof v?.toMillis === "function") return v.toMillis();
@@ -243,7 +258,7 @@ export default function GlobalSearchBar() {
                     <p className="font-black text-slate-900">{d.matricula || "Sin matrícula"} — {d.numeroOR || "Sin OR"}</p>
                     <p className="text-xs text-slate-600">{d.nombreCliente || d.nombre || "Sin cliente"} {d.marcaModelo ? `· ${d.marcaModelo}` : ""}</p>
                   </div>
-                  {r.estadoPresupuesto ? <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700">{r.estadoPresupuesto}</span> : null}
+                  {r.estadoPresupuesto ? <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${estadoColor(r.estadoPresupuesto)}`}>{estadoLegible(r.estadoPresupuesto)}</span> : null}
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <button onClick={() => abrir(`/cliente-form/${encodeURIComponent(r.id)}?view=true`)} className="rounded-lg bg-indigo-600 px-2 py-2 text-xs font-bold text-white">Cuestionario</button>
