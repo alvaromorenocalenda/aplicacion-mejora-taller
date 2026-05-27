@@ -3,6 +3,17 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
+function formDataToObject(form) {
+  const out = {};
+  const fd = new FormData(form);
+  for (const [key, value] of fd.entries()) {
+    if (out[key] === undefined) out[key] = value;
+    else if (Array.isArray(out[key])) out[key].push(value);
+    else out[key] = [out[key], value];
+  }
+  return out;
+}
+
 export default function ChecklistPrintButtonInjector() {
   const pathname = usePathname();
   const router = useRouter();
@@ -30,6 +41,15 @@ export default function ChecklistPrintButtonInjector() {
       btn.textContent = "🖨️ Versión imprimible";
       btn.className = "js-checklist-print-injected px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 font-semibold inline-flex items-center justify-center";
       btn.addEventListener("click", () => {
+        try {
+          const form = document.getElementById("diagnosticoForm");
+          if (form) {
+            const datosFormulario = formDataToObject(form);
+            sessionStorage.setItem(`checklist_print_${id}`, JSON.stringify(datosFormulario));
+          }
+        } catch (e) {
+          console.warn("No se pudo preparar la checklist imprimible:", e);
+        }
         router.push(`/diagnostico-form/${encodeURIComponent(id)}/imprimible`);
       });
       volver.insertAdjacentElement("beforebegin", btn);
