@@ -8,6 +8,15 @@ export default function AppBrandStrip() {
   const pathname = usePathname();
   if (pathname?.startsWith("/login")) return null;
 
+  const partes = (pathname || "").split("/").filter(Boolean);
+  const isChecklistTrabajo =
+    partes[0] === "diagnostico-form" &&
+    partes[1] &&
+    partes[1] !== "imprimible" &&
+    partes[2] !== "imprimible";
+  const checklistId = isChecklistTrabajo ? partes[1] : "";
+  const checklistPrintUrl = checklistId ? `/diagnostico-form/${encodeURIComponent(checklistId)}/imprimible` : "";
+
   return (
     <div className="no-print sticky top-0 z-40 border-b border-white/70 bg-white/90 backdrop-blur-xl shadow-sm">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-2 lg:flex-row lg:items-center lg:justify-between">
@@ -23,9 +32,19 @@ export default function AppBrandStrip() {
           <GlobalSearchBar />
         </div>
 
-        <div className="order-2 hidden items-center gap-3 sm:flex lg:order-3">
-          <img src={LOGO_GRUPO_CALENDA} alt="Grupo Calenda" className="h-10 w-10 rounded-full object-contain shadow-sm" />
-          <img src={LOGO_TOYOTA} alt="Toyota" className="h-10 w-auto rounded-lg bg-white object-contain px-2 py-1 shadow-sm" />
+        <div className="order-2 flex items-center gap-3 lg:order-3">
+          {isChecklistTrabajo ? (
+            <a
+              href={checklistPrintUrl}
+              className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-bold text-white shadow hover:bg-blue-800"
+            >
+              🖨️ Versión imprimible
+            </a>
+          ) : null}
+          <div className="hidden items-center gap-3 sm:flex">
+            <img src={LOGO_GRUPO_CALENDA} alt="Grupo Calenda" className="h-10 w-10 rounded-full object-contain shadow-sm" />
+            <img src={LOGO_TOYOTA} alt="Toyota" className="h-10 w-auto rounded-lg bg-white object-contain px-2 py-1 shadow-sm" />
+          </div>
         </div>
       </div>
     </div>
